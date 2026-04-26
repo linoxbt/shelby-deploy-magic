@@ -1,5 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { ArrowRight, Boxes, CheckCircle2, CloudUpload, Globe2, Github, Network, ShieldCheck, Sparkles } from "lucide-react";
+import { AptosWalletButton } from "../components/shelbyhost/AptosWallet";
 import { LogoMark } from "../components/shelbyhost/AppShell";
 
 export const Route = createFileRoute("/")({
@@ -30,7 +31,9 @@ function Index() {
           <a href="#features" className="transition hover:text-primary">Features</a>
           <a href="#workflow" className="transition hover:text-primary">Workflow</a>
           <Link to="/dashboard" className="transition hover:text-primary">Dashboard</Link>
+          <AptosWalletButton />
         </nav>
+        <div className="sm:hidden"><AptosWalletButton compact /></div>
       </header>
 
       <section className="relative mx-auto grid min-h-[82vh] max-w-7xl content-center px-5 pb-16 pt-14 sm:px-8 lg:grid-cols-[1.05fr_0.95fr] lg:gap-12">
