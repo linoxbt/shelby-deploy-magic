@@ -33,11 +33,15 @@ export const Route = createRootRoute({
       { title: "ShelbyHost — Decentralized Frontend Hosting" },
       { name: "description", content: "Deploy once. Live forever with Shelby-powered decentralized frontend hosting." },
       { name: "author", content: "Lovable" },
-      { property: "og:title", content: "ShelbyHost" },
-      { property: "og:description", content: "Decentralized frontend hosting powered by Shelby." },
+      { property: "og:title", content: "ShelbyHost — Decentralized Frontend Hosting" },
+      { property: "og:description", content: "Deploy once. Live forever with Shelby-powered decentralized frontend hosting." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
       { name: "twitter:site", content: "@Lovable" },
+      { name: "twitter:title", content: "ShelbyHost — Decentralized Frontend Hosting" },
+      { name: "twitter:description", content: "Deploy once. Live forever with Shelby-powered decentralized frontend hosting." },
+      { property: "og:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/f9965be1-1d04-4023-9c28-80b6dfd29952/id-preview-328b4fa0--2e7eb6d0-f70e-48c7-aa55-d0c3a8a0ded2.lovable.app-1777244550635.png" },
+      { name: "twitter:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/f9965be1-1d04-4023-9c28-80b6dfd29952/id-preview-328b4fa0--2e7eb6d0-f70e-48c7-aa55-d0c3a8a0ded2.lovable.app-1777244550635.png" },
     ],
     links: [
       {
