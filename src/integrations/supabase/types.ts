@@ -162,6 +162,7 @@ export type Database = {
           id: string
           latest_version_url: string
           name: string
+          owner_id: string
           size_bytes: number
           slug: string
           source: string
@@ -181,6 +182,7 @@ export type Database = {
           id?: string
           latest_version_url: string
           name: string
+          owner_id?: string
           size_bytes?: number
           slug: string
           source?: string
@@ -200,6 +202,7 @@ export type Database = {
           id?: string
           latest_version_url?: string
           name?: string
+          owner_id?: string
           size_bytes?: number
           slug?: string
           source?: string
@@ -215,6 +218,7 @@ export type Database = {
           chain: string
           created_at: string
           id: string
+          owner_id: string
           status: string
           updated_at: string
           wallet_provider: string
@@ -224,6 +228,7 @@ export type Database = {
           chain: string
           created_at?: string
           id?: string
+          owner_id?: string
           status?: string
           updated_at?: string
           wallet_provider: string
@@ -233,6 +238,7 @@ export type Database = {
           chain?: string
           created_at?: string
           id?: string
+          owner_id?: string
           status?: string
           updated_at?: string
           wallet_provider?: string
