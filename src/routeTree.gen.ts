@@ -13,7 +13,7 @@ import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as DeployRouteImport } from './routes/deploy'
 import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as IndexRouteImport } from './routes/index'
-import { Route as ProjectRouteImport } from './routes/project.'
+import { Route as ProjectSlugRouteImport } from './routes/project.$slug'
 
 const SettingsRoute = SettingsRouteImport.update({
   id: '/settings',
@@ -35,9 +35,9 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ProjectRoute = ProjectRouteImport.update({
-  id: '/project/',
-  path: '/project/',
+const ProjectSlugRoute = ProjectSlugRouteImport.update({
+  id: '/project/$slug',
+  path: '/project/$slug',
   getParentRoute: () => rootRouteImport,
 } as any)
 
@@ -46,14 +46,14 @@ export interface FileRoutesByFullPath {
   '/dashboard': typeof DashboardRoute
   '/deploy': typeof DeployRoute
   '/settings': typeof SettingsRoute
-  '/project/': typeof ProjectRoute
+  '/project/$slug': typeof ProjectSlugRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/dashboard': typeof DashboardRoute
   '/deploy': typeof DeployRoute
   '/settings': typeof SettingsRoute
-  '/project': typeof ProjectRoute
+  '/project/$slug': typeof ProjectSlugRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -61,14 +61,20 @@ export interface FileRoutesById {
   '/dashboard': typeof DashboardRoute
   '/deploy': typeof DeployRoute
   '/settings': typeof SettingsRoute
-  '/project/': typeof ProjectRoute
+  '/project/$slug': typeof ProjectSlugRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/dashboard' | '/deploy' | '/settings' | '/project/'
+  fullPaths: '/' | '/dashboard' | '/deploy' | '/settings' | '/project/$slug'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/dashboard' | '/deploy' | '/settings' | '/project'
-  id: '__root__' | '/' | '/dashboard' | '/deploy' | '/settings' | '/project/'
+  to: '/' | '/dashboard' | '/deploy' | '/settings' | '/project/$slug'
+  id:
+    | '__root__'
+    | '/'
+    | '/dashboard'
+    | '/deploy'
+    | '/settings'
+    | '/project/$slug'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -76,7 +82,7 @@ export interface RootRouteChildren {
   DashboardRoute: typeof DashboardRoute
   DeployRoute: typeof DeployRoute
   SettingsRoute: typeof SettingsRoute
-  ProjectRoute: typeof ProjectRoute
+  ProjectSlugRoute: typeof ProjectSlugRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -109,11 +115,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/project/': {
-      id: '/project/'
-      path: '/project'
-      fullPath: '/project/'
-      preLoaderRoute: typeof ProjectRouteImport
+    '/project/$slug': {
+      id: '/project/$slug'
+      path: '/project/$slug'
+      fullPath: '/project/$slug'
+      preLoaderRoute: typeof ProjectSlugRouteImport
       parentRoute: typeof rootRouteImport
     }
   }
@@ -124,8 +130,17 @@ const rootRouteChildren: RootRouteChildren = {
   DashboardRoute: DashboardRoute,
   DeployRoute: DeployRoute,
   SettingsRoute: SettingsRoute,
-  ProjectRoute: ProjectRoute,
+  ProjectSlugRoute: ProjectSlugRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { createStart } from '@tanstack/react-start'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+  }
+}
