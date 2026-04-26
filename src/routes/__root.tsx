@@ -1,6 +1,7 @@
 import { Outlet, Link, createRootRoute, HeadContent, Scripts } from "@tanstack/react-router";
 
 import appCss from "../styles.css?url";
+import { AptosProvider } from "../components/shelbyhost/AptosWallet";
 import { ShelbyHostProvider } from "../context/ShelbyHostContext";
 
 function NotFoundComponent() {
@@ -71,8 +72,10 @@ function RootShell({ children }: { children: React.ReactNode }) {
 
 function RootComponent() {
   return (
-    <ShelbyHostProvider>
-      <Outlet />
-    </ShelbyHostProvider>
+    <AptosProvider>
+      <ShelbyHostProvider>
+        <Outlet />
+      </ShelbyHostProvider>
+    </AptosProvider>
   );
 }

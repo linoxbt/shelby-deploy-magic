@@ -1,5 +1,6 @@
 import { Link, useLocation } from "@tanstack/react-router";
 import { FolderGit2, Gauge, LayoutDashboard, Settings, UploadCloud } from "lucide-react";
+import { AptosWalletButton } from "./AptosWallet";
 import { useShelbyHost } from "../../context/ShelbyHostContext";
 
 const navItems = [
@@ -68,7 +69,16 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           {!wallet && <button onClick={() => connectWallet("aptos")} className="mt-3 w-full rounded-md bg-primary px-3 py-2 text-xs font-extrabold text-primary-foreground transition hover:bg-primary-hover">Connect Aptos</button>}
         </div>
       </aside>
-      <main className="pb-20 lg:pl-64 lg:pb-0">{children}</main>
+      <main className="pb-20 lg:pl-64 lg:pb-0">
+        <header className="sticky top-0 z-10 flex items-center justify-between border-b border-border bg-background/85 px-5 py-3 backdrop-blur lg:hidden">
+          <LogoMark />
+          <AptosWalletButton compact />
+        </header>
+        <div className="hidden justify-end border-b border-border bg-background/70 px-8 py-3 backdrop-blur lg:flex">
+          <AptosWalletButton />
+        </div>
+        {children}
+      </main>
       <nav className="fixed bottom-0 left-0 right-0 z-30 grid grid-cols-4 border-t border-border bg-sidebar/95 px-2 py-2 backdrop-blur lg:hidden">
         {navItems.map((item) => {
           const Icon = item.icon;
