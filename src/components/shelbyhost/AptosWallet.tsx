@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { AptosWalletAdapterProvider, useWallet } from "@aptos-labs/wallet-adapter-react";
 import { Network } from "@aptos-labs/ts-sdk";
-import { Check, ChevronDown, Copy, ExternalLink, LogOut, Wallet } from "lucide-react";
+import { Check, ChevronDown, Copy, ExternalLink, LogOut, Repeat2, Wallet } from "lucide-react";
 
 const supportedWallets = [
   { name: "Petra", url: "https://petra.app/" },
@@ -36,6 +36,13 @@ export function AptosWalletButton({ compact = false }: { compact?: boolean }) {
   const detectedNames = useMemo(() => new Set(wallets.map((item) => item.name.toLowerCase())), [wallets]);
   const installOptions = supportedWallets.filter((item) => !detectedNames.has(item.name.toLowerCase()));
   const detectedSupported = wallets.filter((item) => supportedWallets.some((supported) => supported.name.toLowerCase() === item.name.toLowerCase()));
+
+  const selectWallet = async (walletName: string) => {
+    if (wallet?.name === walletName && connected) return;
+    if (connected) await disconnect();
+    await connect(walletName);
+    setOpen(false);
+  };
 
   const copyAddress = async () => {
     if (!address) return;
@@ -74,6 +81,15 @@ export function AptosWalletButton({ compact = false }: { compact?: boolean }) {
                 <button onClick={() => switchNetwork(Network.TESTNET)} className="rounded-md border border-border px-3 py-2 text-xs font-bold text-foreground transition hover:border-primary hover:text-primary">Testnet</button>
                 <button onClick={() => switchNetwork(Network.MAINNET)} className="rounded-md border border-border px-3 py-2 text-xs font-bold text-foreground transition hover:border-primary hover:text-primary">Mainnet</button>
               </div>
+              <div className="space-y-2 border-t border-border pt-3">
+                <p className="text-xs font-semibold uppercase text-muted-foreground">Switch wallet</p>
+                {detectedSupported.map((item) => (
+                  <button key={item.name} onClick={() => selectWallet(item.name)} className="flex w-full items-center justify-between rounded-md border border-border bg-background/50 px-3 py-2.5 text-sm font-bold text-foreground transition hover:border-primary hover:text-primary">
+                    <span className="inline-flex items-center gap-2"><Repeat2 className="h-4 w-4 text-primary" />{item.name}</span>
+                    <span className={`text-xs ${wallet?.name === item.name ? "text-success" : "text-muted-foreground"}`}>{wallet?.name === item.name ? "Active" : "Switch"}</span>
+                  </button>
+                ))}
+              </div>
               <div className="grid grid-cols-2 gap-2">
                 <button onClick={copyAddress} className="inline-flex items-center justify-center gap-2 rounded-md bg-primary px-3 py-2 text-xs font-extrabold text-primary-foreground transition hover:bg-primary-hover">
                   {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />} {copied ? "Copied" : "Copy"}
@@ -91,7 +107,7 @@ export function AptosWalletButton({ compact = false }: { compact?: boolean }) {
               </div>
               <div className="space-y-2">
                 {detectedSupported.map((item) => (
-                  <button key={item.name} onClick={() => connect(item.name)} className="flex w-full items-center justify-between rounded-md border border-border bg-background/50 px-3 py-2.5 text-sm font-bold text-foreground transition hover:border-primary hover:text-primary">
+                  <button key={item.name} onClick={() => selectWallet(item.name)} className="flex w-full items-center justify-between rounded-md border border-border bg-background/50 px-3 py-2.5 text-sm font-bold text-foreground transition hover:border-primary hover:text-primary">
                     <span>{item.name}</span><span className="text-xs text-success">Installed</span>
                   </button>
                 ))}

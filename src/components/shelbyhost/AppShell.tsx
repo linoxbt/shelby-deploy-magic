@@ -20,7 +20,6 @@ export function ShelbyLogo({ compact = false }: { compact?: boolean }) {
       {!compact && (
         <span className="leading-none">
           <span className="block text-lg font-black tracking-normal text-foreground">Shelby Host</span>
-          <span className="font-mono text-[10px] font-bold uppercase text-primary">Aptos deploy gateway</span>
         </span>
       )}
     </span>

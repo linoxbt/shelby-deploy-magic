@@ -25,15 +25,21 @@ function Index() {
   return (
     <main className="min-h-screen overflow-hidden bg-background text-foreground">
       <div className="fixed inset-0 -z-10 bg-grid" />
-      <header className="mx-auto flex max-w-7xl items-center justify-between px-5 py-6 sm:px-8">
-        <LogoMark />
-        <nav className="hidden items-center gap-6 text-sm font-medium text-muted-foreground sm:flex">
-          <a href="#features" className="transition hover:text-primary">Features</a>
-          <a href="#workflow" className="transition hover:text-primary">Workflow</a>
-          <Link to="/dashboard" className="transition hover:text-primary">Dashboard</Link>
-          <AptosWalletButton />
+      <header className="mx-auto max-w-7xl px-5 py-6 sm:px-8">
+        <div className="flex items-center justify-between">
+          <LogoMark />
+          <nav className="hidden items-center gap-6 text-sm font-medium text-muted-foreground sm:flex">
+            <a href="#features" className="transition hover:text-primary">Features</a>
+            <a href="#workflow" className="transition hover:text-primary">Workflow</a>
+            <Link to="/dashboard" className="transition hover:text-primary">Dashboard</Link>
+            <AptosWalletButton />
+          </nav>
+          <div className="sm:hidden"><AptosWalletButton compact /></div>
+        </div>
+        <nav className="mt-5 grid grid-cols-2 gap-2 text-sm font-bold sm:hidden">
+          <Link to="/dashboard" className="rounded-md border border-border bg-card px-3 py-2 text-center text-foreground transition hover:border-primary hover:text-primary">Dashboard</Link>
+          <Link to="/deploy" className="rounded-md bg-primary px-3 py-2 text-center text-primary-foreground transition hover:bg-primary-hover">Deploy</Link>
         </nav>
-        <div className="sm:hidden"><AptosWalletButton compact /></div>
       </header>
 
       <section className="relative mx-auto grid min-h-[82vh] max-w-7xl content-center px-5 pb-16 pt-14 sm:px-8 lg:grid-cols-[1.05fr_0.95fr] lg:gap-12">
