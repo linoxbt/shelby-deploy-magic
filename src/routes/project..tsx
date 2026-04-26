@@ -3,7 +3,7 @@ import { Copy, ExternalLink, FileCode2, Trash2 } from "lucide-react";
 import { AppShell, formatBytes, StatusBadge } from "../components/shelbyhost/AppShell";
 import { useShelbyHost } from "../context/ShelbyHostContext";
 
-export const Route = createFileRoute("/project/$slug")({
+export const Route = createFileRoute("/project/")({
   head: () => ({ meta: [{ title: "Project — ShelbyHost" }, { name: "description", content: "ShelbyHost project deployment details, file tree, hashes, and custom domain status." }] }),
   component: ProjectDetail,
 });
