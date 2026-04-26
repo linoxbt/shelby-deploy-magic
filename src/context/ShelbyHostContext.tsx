@@ -91,6 +91,8 @@ interface ShelbyHostContextValue {
   generateHash: () => string;
 }
 
+const ShelbyHostContext = createContext<ShelbyHostContextValue | null>(null);
+
 const STORAGE_KEY = "shelbyhost-projects-v2";
 const WALLET_KEY = "shelbyhost-wallet-v1";
 const TARGET_HOST = "shelbyhost.pages.dev";
