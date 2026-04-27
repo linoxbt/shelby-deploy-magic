@@ -98,7 +98,7 @@ const WALLET_KEY = "shelbyhost-wallet-v1";
 const TARGET_HOST = "shelbyhost.pages.dev";
 
 const now = () => new Date().toISOString();
-const makeId = () => crypto.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+const makeId = () => `${Date.now()}-${Math.random().toString(16).slice(2)}`;
 const makeHash = () => Array.from({ length: 32 }, () => Math.floor(Math.random() * 16).toString(16)).join("");
 const versionUrl = (slug: string, hash: string) => `https://${TARGET_HOST}/p/${slug}?v=${hash.slice(0, 8)}`;
 
@@ -129,7 +129,7 @@ const seedProjects: Project[] = [
     walletAddress: "0x7e5b1a2c9f4d88a0",
     github: { account: "shelby-labs", repository: "lunex-finance", branch: "main", workflowFile: ".github/workflows/shelbyhost-deploy.yml", webhookStatus: "active", lastPushAt: new Date(Date.now() - 1000 * 60 * 38).toISOString() },
     domain: { domain: "myproject.com", status: "verified", target: TARGET_HOST, slug: "lunex-finance", hash: "a3f721bc9e04d15f7c8ab2e091634d72", kvKey: "host:myproject.com" },
-    deployments: [makeDeployment("seed-lunex", "lunex-finance", "a3f721bc9e04d15f7c8ab2e091634d72", "succeeded", "github-push", "GitHub Action uploaded dist and registered the Aptos hash.")],
+    deployments: [{ id: "seed-lunex-deploy-1", projectId: "seed-lunex", status: "succeeded", trigger: "github-push", timestamp: new Date(Date.now() - 1000 * 60 * 38).toISOString(), versionUrl: versionUrl("lunex-finance", "a3f721bc9e04d15f7c8ab2e091634d72"), hash: "a3f721bc9e04d15f7c8ab2e091634d72", message: "GitHub Action uploaded dist and registered the Aptos hash." }],
   },
   {
     id: "seed-aurumx",
@@ -150,7 +150,7 @@ const seedProjects: Project[] = [
     latestVersionUrl: versionUrl("aurumx-landing", "b91c334e6ad7f409cc8a22e18a7d924f"),
     chain: "aptos",
     domain: { domain: "app.aurumx.io", status: "pending", target: TARGET_HOST, slug: "aurumx-landing", hash: "b91c334e6ad7f409cc8a22e18a7d924f", kvKey: "host:app.aurumx.io" },
-    deployments: [makeDeployment("seed-aurumx", "aurumx-landing", "b91c334e6ad7f409cc8a22e18a7d924f", "succeeded", "manual", "Build output check passed and the site went live.")],
+    deployments: [{ id: "seed-aurumx-deploy-1", projectId: "seed-aurumx", status: "succeeded", trigger: "manual", timestamp: new Date(Date.now() - 1000 * 60 * 60 * 5).toISOString(), versionUrl: versionUrl("aurumx-landing", "b91c334e6ad7f409cc8a22e18a7d924f"), hash: "b91c334e6ad7f409cc8a22e18a7d924f", message: "Build output check passed and the site went live." }],
   },
 ];
 
