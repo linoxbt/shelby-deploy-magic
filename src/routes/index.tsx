@@ -68,21 +68,25 @@ function Index() {
         </div>
       </section>
 
-      <section className="border-y border-border bg-sidebar/70 px-5 py-6">
+      <section className="border-y border-border bg-card px-5 py-7">
         <div className="mx-auto grid max-w-7xl gap-4 text-center sm:grid-cols-3">
-          {["847 projects deployed", "12.4 GB stored", "99.98% uptime"].map((stat) => {
+          {["847 preview deploys", "12.4 GB stored", "99.98% uptime"].map((stat) => {
             const [number, ...label] = stat.split(" ");
-            return <p key={stat} className="text-muted-foreground"><span className="font-mono text-xl font-bold text-primary">{number}</span> {label.join(" ")}</p>;
+            return <p key={stat} className="text-muted-foreground"><span className="font-mono text-xl font-bold text-foreground">{number}</span> {label.join(" ")}</p>;
           })}
         </div>
       </section>
 
-      <section id="features" className="mx-auto max-w-7xl px-5 py-20 sm:px-8">
+      <section id="features" className="mx-auto max-w-7xl px-5 py-24 sm:px-8">
+        <div className="mb-10 max-w-3xl">
+          <p className="text-sm font-extrabold uppercase text-muted-foreground">Platform</p>
+          <h2 className="mt-3 text-4xl font-extrabold leading-tight text-foreground sm:text-5xl">The deployment control plane for decentralized frontends.</h2>
+        </div>
         <div className="grid gap-4 md:grid-cols-3">
           {features.map((feature) => {
             const Icon = feature.icon;
             return (
-              <article key={feature.title} className="rounded-lg border border-border bg-card p-6 transition hover:-translate-y-0.5 hover:border-primary/60 hover:shadow-glow">
+              <article key={feature.title} className="rounded-lg border border-border bg-card p-6 transition hover:-translate-y-0.5 hover:border-foreground/40 hover:shadow-glow">
                 <Icon className="h-7 w-7 text-primary" />
                 <h2 className="mt-5 text-xl font-bold text-foreground">{feature.title}</h2>
                 <p className="mt-3 text-sm leading-6 text-muted-foreground">{feature.body}</p>
@@ -92,13 +96,13 @@ function Index() {
         </div>
       </section>
 
-      <section id="workflow" className="mx-auto max-w-7xl px-5 pb-20 sm:px-8">
+      <section id="workflow" className="mx-auto max-w-7xl px-5 pb-24 sm:px-8">
         <div className="grid gap-4 lg:grid-cols-3">
-          {["Upload your build folder", "ShelbyHost pushes it to Shelby nodes", "Your site is live at a verifiable URL"].map((step, index) => (
+          {["Create a project", "Preview every deployment", "Promote with domains"].map((step, index) => (
             <div key={step} className="rounded-lg border border-border bg-card p-6">
               <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary text-sm font-extrabold text-primary-foreground">{index + 1}</div>
               <p className="mt-5 font-bold text-foreground">{step}</p>
-              <p className="mt-2 text-sm text-muted-foreground">{index === 0 ? "Use drag-and-drop, GitHub Actions, or a pre-built dist folder." : index === 1 ? "A content hash records the exact frontend artifact." : "Cloudflare handles SSL while Shelby keeps content addressable."}</p>
+              <p className="mt-2 text-sm text-muted-foreground">{index === 0 ? "Import a repository or upload a compiled build output." : index === 1 ? "Each build gets logs, status, immutable hash, and a preview URL." : "Assign production domains while Shelby keeps content addressable."}</p>
             </div>
           ))}
         </div>
