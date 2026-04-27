@@ -150,7 +150,7 @@ const seedProjects: Project[] = [
     latestVersionUrl: versionUrl("aurumx-landing", "b91c334e6ad7f409cc8a22e18a7d924f"),
     chain: "aptos",
     domain: { domain: "app.aurumx.io", status: "pending", target: TARGET_HOST, slug: "aurumx-landing", hash: "b91c334e6ad7f409cc8a22e18a7d924f", kvKey: "host:app.aurumx.io" },
-    deployments: [{ id: "seed-aurumx-deploy-1", projectId: "seed-aurumx", status: "succeeded", trigger: "manual", timestamp: new Date(Date.now() - 1000 * 60 * 60 * 5).toISOString(), versionUrl: versionUrl("aurumx-landing", "b91c334e6ad7f409cc8a22e18a7d924f"), hash: "b91c334e6ad7f409cc8a22e18a7f409cc8a22e18a7d924f".slice(0, 32), message: "Build output check passed and the site went live." }],
+    deployments: [{ id: "seed-aurumx-deploy-1", projectId: "seed-aurumx", status: "succeeded", trigger: "manual", timestamp: new Date(Date.now() - 1000 * 60 * 60 * 5).toISOString(), versionUrl: versionUrl("aurumx-landing", "b91c334e6ad7f409cc8a22e18a7d924f"), hash: "b91c334e6ad7f409cc8a22e18a7d924f", message: "Build output check passed and the site went live." }],
   },
 ];
 
