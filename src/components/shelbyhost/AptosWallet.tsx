@@ -1,0 +1,45 @@
+import { useEffect, useState } from "react";
+import { ChevronDown, Wallet } from "lucide-react";
+
+type AptosClientModule = typeof import("./AptosWalletClient");
+
+export function AptosProvider({ children }: { children: React.ReactNode }) {
+  const [Provider, setProvider] = useState<AptosClientModule["AptosProviderClient"] | null>(null);
+
+  useEffect(() => {
+    let mounted = true;
+    import("./AptosWalletClient").then((module) => {
+      if (mounted) setProvider(() => module.AptosProviderClient);
+    });
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  if (!Provider) return <>{children}</>;
+  return <Provider>{children}</Provider>;
+}
+
+export function AptosWalletButton({ compact = false }: { compact?: boolean }) {
+  const [Button, setButton] = useState<AptosClientModule["AptosWalletButtonClient"] | null>(null);
+
+  useEffect(() => {
+    let mounted = true;
+    import("./AptosWalletClient").then((module) => {
+      if (mounted) setButton(() => module.AptosWalletButtonClient);
+    });
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  if (Button) return <Button compact={compact} />;
+
+  return (
+    <button className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md border border-border bg-card px-3 py-2 text-sm font-bold text-foreground shadow-panel">
+      <Wallet className="h-4 w-4 text-primary" />
+      Connect Wallet
+      <ChevronDown className="h-4 w-4 text-muted-foreground" />
+    </button>
+  );
+}
