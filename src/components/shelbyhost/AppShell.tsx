@@ -13,13 +13,13 @@ const navItems = [
 export function ShelbyLogo({ compact = false }: { compact?: boolean }) {
   return (
     <span className="flex items-center gap-3">
-      <span className="relative grid h-9 w-9 place-items-center rounded-md border border-primary/50 bg-primary/10 shadow-glow">
-        <span className="absolute inset-1 rounded-sm border border-primary/70" />
-        <span className="h-3 w-3 rotate-45 border-2 border-primary bg-background" />
+      <span className="relative grid h-9 w-9 place-items-center rounded-md border border-current/50 bg-current/10 shadow-glow">
+        <span className="absolute inset-1 rounded-sm border border-current/70" />
+        <span className="h-3 w-3 rotate-45 border-2 border-current bg-background" />
       </span>
       {!compact && (
         <span className="leading-none">
-          <span className="block text-lg font-black tracking-normal text-foreground">Shelby Host</span>
+          <span className="block text-lg font-black tracking-normal text-current">Shelby Host</span>
         </span>
       )}
     </span>
