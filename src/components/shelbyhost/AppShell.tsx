@@ -13,13 +13,13 @@ const navItems = [
 export function ShelbyLogo({ compact = false }: { compact?: boolean }) {
   return (
     <span className="flex items-center gap-3">
-      <span className="relative grid h-9 w-9 place-items-center rounded-md border border-primary/50 bg-primary/10 shadow-glow">
-        <span className="absolute inset-1 rounded-sm border border-primary/70" />
-        <span className="h-3 w-3 rotate-45 border-2 border-primary bg-background" />
+      <span className="relative grid h-9 w-9 place-items-center rounded-md border border-current/50 bg-current/10 shadow-glow">
+        <span className="absolute inset-1 rounded-sm border border-current/70" />
+        <span className="h-3 w-3 rotate-45 border-2 border-current bg-background" />
       </span>
       {!compact && (
         <span className="leading-none">
-          <span className="block text-lg font-black tracking-normal text-foreground">Shelby Host</span>
+          <span className="block text-lg font-black tracking-normal text-current">Shelby Host</span>
         </span>
       )}
     </span>
@@ -41,31 +41,31 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   return (
     <div className="min-h-screen bg-background text-foreground">
       <div className="fixed inset-0 -z-10 bg-grid opacity-90" />
-      <aside className="fixed left-0 top-0 z-20 hidden h-screen w-64 border-r border-border bg-sidebar/95 px-4 py-5 backdrop-blur lg:block">
+      <aside className="fixed left-0 top-0 z-20 hidden h-screen w-64 border-r border-border bg-sidebar px-4 py-5 text-sidebar-foreground lg:block">
         <LogoMark />
         <nav className="mt-10 space-y-2">
           {navItems.map((item) => {
             const Icon = item.icon;
             const active = location.pathname === item.to || (item.label === "Projects" && location.pathname.startsWith("/project"));
             return (
-              <Link key={item.label} to={item.to} className={`flex items-center gap-3 rounded-md border-l-2 px-3 py-2.5 text-sm font-medium transition ${active ? "border-primary bg-primary/10 text-primary" : "border-transparent text-muted-foreground hover:bg-secondary hover:text-foreground"}`}>
+              <Link key={item.label} to={item.to} className={`flex items-center gap-3 rounded-md border-l-2 px-3 py-2.5 text-sm font-bold transition ${active ? "border-sidebar-foreground bg-sidebar-foreground/10 text-sidebar-foreground" : "border-transparent text-sidebar-foreground/60 hover:bg-sidebar-foreground/10 hover:text-sidebar-foreground"}`}>
                 <Icon className="h-4 w-4" />
                 {item.label}
               </Link>
             );
           })}
         </nav>
-        <div className="absolute bottom-5 left-4 right-4 rounded-md border border-border bg-card p-3">
+        <div className="absolute bottom-5 left-4 right-4 rounded-md border border-sidebar-foreground/15 bg-sidebar-foreground/10 p-3">
           <div className="flex items-center gap-3">
-            <div className="flex h-9 w-9 items-center justify-center rounded-md bg-primary/10 text-primary">
+            <div className="flex h-9 w-9 items-center justify-center rounded-md bg-sidebar-foreground text-sidebar">
               <FolderGit2 className="h-4 w-4" />
             </div>
             <div className="min-w-0 flex-1">
-              <p className="text-sm font-semibold text-foreground">{wallet ? `${wallet.chain.toUpperCase()} wallet` : "Builder wallet"}</p>
-              <p className="truncate font-mono text-xs text-muted-foreground">{wallet?.address ?? "Not connected"}</p>
+              <p className="text-sm font-semibold text-sidebar-foreground">{wallet ? `${wallet.chain.toUpperCase()} wallet` : "Builder wallet"}</p>
+              <p className="truncate font-mono text-xs text-sidebar-foreground/60">{wallet?.address ?? "Not connected"}</p>
             </div>
           </div>
-          {!wallet && <button onClick={() => connectWallet("aptos")} className="mt-3 w-full rounded-md bg-primary px-3 py-2 text-xs font-extrabold text-primary-foreground transition hover:bg-primary-hover">Connect Aptos</button>}
+          {!wallet && <button onClick={() => connectWallet("aptos")} className="mt-3 w-full rounded-md bg-sidebar-foreground px-3 py-2 text-xs font-extrabold text-sidebar transition hover:opacity-90">Connect Aptos</button>}
         </div>
       </aside>
       <main className="pb-20 lg:pl-64 lg:pb-0">
@@ -78,12 +78,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </div>
         {children}
       </main>
-      <nav className="fixed bottom-0 left-0 right-0 z-30 grid grid-cols-4 border-t border-border bg-sidebar/95 px-2 py-2 backdrop-blur lg:hidden">
+      <nav className="fixed bottom-0 left-0 right-0 z-30 grid grid-cols-4 border-t border-border bg-sidebar px-2 py-2 text-sidebar-foreground lg:hidden">
         {navItems.map((item) => {
           const Icon = item.icon;
           const active = location.pathname === item.to;
           return (
-            <Link key={item.label} to={item.to} className={`flex flex-col items-center gap-1 rounded-md px-2 py-1.5 text-xs ${active ? "text-primary" : "text-muted-foreground"}`}>
+            <Link key={item.label} to={item.to} className={`flex flex-col items-center gap-1 rounded-md px-2 py-1.5 text-xs ${active ? "text-sidebar-foreground" : "text-sidebar-foreground/55"}`}>
               <Icon className="h-4 w-4" />
               {item.label}
             </Link>
