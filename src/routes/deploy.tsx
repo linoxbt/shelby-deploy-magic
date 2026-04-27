@@ -55,19 +55,19 @@ function Deploy() {
     <AppShell>
       <div className="mx-auto grid max-w-7xl gap-6 px-5 py-8 sm:px-8 xl:grid-cols-[1fr_0.85fr]">
         <section className="rounded-lg border border-border bg-card p-5 sm:p-6">
-          <p className="font-mono text-sm font-semibold uppercase text-primary">Deploy method</p>
-          <h1 className="mt-2 text-3xl font-extrabold text-foreground">Ship a frontend to Shelby</h1>
+          <p className="text-sm font-extrabold uppercase text-muted-foreground">New deployment</p>
+          <h1 className="mt-2 text-4xl font-extrabold text-foreground">Ship from upload or Git.</h1>
           <div className="mt-6 grid gap-3 md:grid-cols-3">
             {[{ icon: UploadCloud, title: "Drag & drop" }, { icon: Github, title: "GitHub repo" }, { icon: Globe2, title: "Custom domain" }].map((item) => {
               const Icon = item.icon;
-              return <div key={item.title} className="rounded-md border border-border bg-secondary p-4"><Icon className="h-5 w-5 text-primary" /><p className="mt-3 text-sm font-bold text-foreground">{item.title}</p></div>;
+                return <div key={item.title} className="rounded-md border border-border bg-secondary p-4"><Icon className="h-5 w-5 text-primary" /><p className="mt-3 text-sm font-bold text-foreground">{item.title}</p></div>;
             })}
           </div>
 
           <button onClick={addMockFile} className="mt-6 flex min-h-52 w-full scale-100 flex-col items-center justify-center rounded-lg border border-dashed border-border bg-background/40 p-8 text-center transition hover:scale-[1.01] hover:border-primary hover:shadow-glow">
             <UploadCloud className="h-10 w-10 text-primary" />
-            <span className="mt-4 text-lg font-bold text-foreground">Drag your build folder here</span>
-            <span className="mt-2 text-sm text-muted-foreground">Expected output is checked before publishing.</span>
+            <span className="mt-4 text-lg font-bold text-foreground">Drop a production build</span>
+            <span className="mt-2 text-sm text-muted-foreground">Create a preview, validate output, then promote to live.</span>
             <span className="mt-3 text-sm font-semibold text-primary">Click to add a mock asset</span>
           </button>
 
@@ -88,14 +88,14 @@ function Deploy() {
             <label className="grid gap-2 text-sm font-semibold text-foreground">Project Name<input value={name} onChange={(event) => setName(event.target.value)} className="rounded-md border border-input bg-background px-3 py-3 text-foreground outline-none transition focus:border-primary focus:ring-2 focus:ring-ring" /></label>
             <label className="grid gap-2 text-sm font-semibold text-foreground">Description<textarea value={description} onChange={(event) => setDescription(event.target.value)} rows={2} className="rounded-md border border-input bg-background px-3 py-3 text-foreground outline-none transition focus:border-primary focus:ring-2 focus:ring-ring" /></label>
             <div className="grid gap-3 sm:grid-cols-2"><label className="grid gap-2 text-sm font-semibold text-foreground">Framework<input value={framework} onChange={(event) => setFramework(event.target.value)} className="rounded-md border border-input bg-background px-3 py-3 text-foreground outline-none transition focus:border-primary focus:ring-2 focus:ring-ring" /></label><label className="grid gap-2 text-sm font-semibold text-foreground">Build output<input value={buildOutput} onChange={(event) => setBuildOutput(event.target.value)} className="rounded-md border border-input bg-background px-3 py-3 text-foreground outline-none transition focus:border-primary focus:ring-2 focus:ring-ring" /></label></div>
-            <div className="rounded-md border border-border bg-secondary p-3 font-mono text-sm text-primary">Your URL: shelbyhost.pages.dev/p/{slug}</div>
+            <div className="rounded-md border border-border bg-secondary p-3 font-mono text-sm text-primary">Preview URL: shelbyhost.pages.dev/p/{slug}</div>
             <button onClick={() => connectWallet("aptos")} className="h-11 rounded-md border border-primary/40 px-5 text-sm font-extrabold text-primary transition hover:bg-primary/10">{wallet ? `Aptos connected: ${wallet.address}` : "Connect Aptos Wallet"}</button>
-            <button onClick={deploy} disabled={!buildCheck.valid} className="h-12 rounded-md bg-primary px-5 text-sm font-extrabold text-primary-foreground transition hover:bg-primary-hover hover:shadow-glow disabled:cursor-not-allowed disabled:opacity-50">Deploy to Shelby</button>
+            <button onClick={deploy} disabled={!buildCheck.valid} className="h-12 rounded-md bg-primary px-5 text-sm font-extrabold text-primary-foreground transition hover:bg-primary-hover hover:shadow-glow disabled:cursor-not-allowed disabled:opacity-50">Create Deployment</button>
           </div>
         </section>
 
         <aside className="rounded-lg border border-border bg-card p-5 sm:p-6">
-          <h2 className="text-xl font-bold text-foreground">Deployment Status</h2>
+          <h2 className="text-xl font-bold text-foreground">Build Status</h2>
           <div className="mt-6 space-y-4">
             {deploymentSteps.map((step, index) => {
               const done = activeStep > index || deployed;
@@ -105,7 +105,7 @@ function Deploy() {
           </div>
           <div className="mt-6 h-2 overflow-hidden rounded-full bg-secondary"><div className="h-full bg-primary transition-all duration-700" style={{ width: `${deployed ? 100 : Math.min((activeStep + 1) * 20, 80)}%` }} /></div>
 
-          {deployed && <div className="mt-6 rounded-lg border border-primary/50 bg-primary/10 p-5 shadow-glow"><h3 className="text-xl font-extrabold text-foreground">Your site is live!</h3><div className="mt-4 flex items-center gap-2 rounded-md border border-border bg-background p-3"><span className="min-w-0 flex-1 truncate font-mono text-sm text-primary">{deployed.latestVersionUrl}</span><button onClick={copyUrl} className="text-primary"><Copy className="h-4 w-4" /></button></div><p className="mt-3 font-mono text-xs text-muted-foreground">Aptos hash: {deployed.hash.slice(0, 8)}...{deployed.hash.slice(-4)}</p><div className="mt-5 flex gap-3"><a href={deployed.latestVersionUrl} className="rounded-md bg-primary px-4 py-2 text-sm font-bold text-primary-foreground">Visit Site</a><Link to="/dashboard" className="rounded-md border border-border px-4 py-2 text-sm font-bold text-foreground">View Dashboard</Link></div>{copied && <p className="mt-3 text-sm font-semibold text-success">✓ Copied!</p>}</div>}
+          {deployed && <div className="mt-6 rounded-lg border border-primary/50 bg-primary/10 p-5 shadow-glow"><h3 className="text-xl font-extrabold text-foreground">Deployment ready.</h3><div className="mt-4 flex items-center gap-2 rounded-md border border-border bg-background p-3"><span className="min-w-0 flex-1 truncate font-mono text-sm text-primary">{deployed.latestVersionUrl}</span><button onClick={copyUrl} className="text-primary"><Copy className="h-4 w-4" /></button></div><p className="mt-3 font-mono text-xs text-muted-foreground">Aptos hash: {deployed.hash.slice(0, 8)}...{deployed.hash.slice(-4)}</p><div className="mt-5 flex gap-3"><a href={deployed.latestVersionUrl} className="rounded-md bg-primary px-4 py-2 text-sm font-bold text-primary-foreground">Visit Site</a><Link to="/dashboard" className="rounded-md border border-border px-4 py-2 text-sm font-bold text-foreground">View Dashboard</Link></div>{copied && <p className="mt-3 text-sm font-semibold text-success">✓ Copied!</p>}</div>}
         </aside>
       </div>
     </AppShell>
