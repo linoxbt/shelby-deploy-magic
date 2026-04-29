@@ -1,4 +1,4 @@
-import { createCipheriv, createDecipheriv, createHash, randomBytes } from "crypto";
+import { createCipheriv, createDecipheriv, createHash, randomBytes, randomUUID } from "crypto";
 import { getRequestHost, getRequestUrl, useSession } from "@tanstack/react-start/server";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 
@@ -80,10 +80,9 @@ export async function getGithubSession() {
 
 export async function ensureGithubOwnerId() {
   const session = await getGithubSession();
-  if (!session.data.ownerId) {
-    await session.update({ ...session.data, ownerId: crypto.randomUUID() });
-  }
-  return { session, ownerId: session.data.ownerId! };
+  const ownerId = session.data.ownerId ?? randomUUID();
+  if (!session.data.ownerId) await session.update({ ...session.data, ownerId });
+  return { session, ownerId };
 }
 
 export async function createGithubAuthUrl(redirectTo: string) {
