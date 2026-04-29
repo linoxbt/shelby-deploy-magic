@@ -105,7 +105,10 @@
   html { scroll-behavior: smooth; }
   body {
     min-height: 100vh;
-    background-color: var(--color-background);
+    background:
+      radial-gradient(circle at 18% 12%, color-mix(in oklab, var(--primary) 18%, transparent), transparent 28rem),
+      radial-gradient(circle at 86% 22%, color-mix(in oklab, var(--accent) 18%, transparent), transparent 26rem),
+      var(--color-background);
     color: var(--color-foreground);
     font-family: var(--font-sans);
     letter-spacing: 0;
@@ -116,9 +119,15 @@
 @layer utilities {
   .bg-grid {
     background-image:
-      linear-gradient(color-mix(in oklab, var(--primary) 8%, transparent) 1px, transparent 1px),
-      linear-gradient(90deg, color-mix(in oklab, var(--accent) 7%, transparent) 1px, transparent 1px);
+      linear-gradient(color-mix(in oklab, var(--foreground) 5%, transparent) 1px, transparent 1px),
+      linear-gradient(90deg, color-mix(in oklab, var(--foreground) 5%, transparent) 1px, transparent 1px);
     background-size: 72px 72px;
+  }
+  .shelby-surface {
+    background:
+      linear-gradient(135deg, color-mix(in oklab, var(--primary) 22%, transparent), transparent 42%),
+      linear-gradient(315deg, color-mix(in oklab, var(--accent) 20%, transparent), transparent 45%),
+      var(--color-card);
   }
   .animate-float { animation: float-panel 6s ease-in-out infinite; }
   .animate-fade-in { animation: fade-in 420ms ease both; }
