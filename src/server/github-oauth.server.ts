@@ -36,6 +36,26 @@ const GITHUB_AUTHORIZE_URL = "https://github.com/login/oauth/authorize";
 const GITHUB_TOKEN_URL = "https://github.com/login/oauth/access_token";
 const GITHUB_API_URL = "https://api.github.com";
 
+interface DbError {
+  message: string;
+}
+
+interface DbResult<T = unknown> {
+  data: T | null;
+  error: DbError | null;
+}
+
+interface DbQuery<T = unknown> extends PromiseLike<DbResult<T>> {
+  insert(value: unknown): DbQuery<T>;
+  upsert(value: unknown, options?: unknown): DbQuery<T>;
+  select(columns: string): DbQuery<T>;
+  eq(column: string, value: unknown): DbQuery<T>;
+  delete(): DbQuery<T>;
+  single(): Promise<DbResult<T>>;
+}
+
+const shelbyDb = supabaseAdmin as unknown as { from: <T = unknown>(table: string) => DbQuery<T> };
+
 function requireEnv(name: string) {
   const value = process.env[name];
   if (!value) throw new Error(`${name} is not configured`);
@@ -78,6 +98,7 @@ export function getOrigin() {
 }
 
 export async function getGithubSession() {
+  // eslint-disable-next-line react-hooks/rules-of-hooks
   return useSession<GithubSessionData>({
     name: "shelby-github-session",
     password: requireEnv("GITHUB_TOKEN_ENCRYPTION_SECRET"),
