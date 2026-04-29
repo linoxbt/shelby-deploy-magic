@@ -15,6 +15,8 @@ import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ProjectSlugRouteImport } from './routes/project.$slug'
 import { Route as ApiGithubStartRouteImport } from './routes/api/github/start'
+import { Route as ApiGithubReposRouteImport } from './routes/api/github/repos'
+import { Route as ApiPublicGithubCallbackRouteImport } from './routes/api/public/github/callback'
 
 const SettingsRoute = SettingsRouteImport.update({
   id: '/settings',
@@ -46,6 +48,16 @@ const ApiGithubStartRoute = ApiGithubStartRouteImport.update({
   path: '/api/github/start',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiGithubReposRoute = ApiGithubReposRouteImport.update({
+  id: '/api/github/repos',
+  path: '/api/github/repos',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiPublicGithubCallbackRoute = ApiPublicGithubCallbackRouteImport.update({
+  id: '/api/public/github/callback',
+  path: '/api/public/github/callback',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -53,7 +65,9 @@ export interface FileRoutesByFullPath {
   '/deploy': typeof DeployRoute
   '/settings': typeof SettingsRoute
   '/project/$slug': typeof ProjectSlugRoute
+  '/api/github/repos': typeof ApiGithubReposRoute
   '/api/github/start': typeof ApiGithubStartRoute
+  '/api/public/github/callback': typeof ApiPublicGithubCallbackRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -61,7 +75,9 @@ export interface FileRoutesByTo {
   '/deploy': typeof DeployRoute
   '/settings': typeof SettingsRoute
   '/project/$slug': typeof ProjectSlugRoute
+  '/api/github/repos': typeof ApiGithubReposRoute
   '/api/github/start': typeof ApiGithubStartRoute
+  '/api/public/github/callback': typeof ApiPublicGithubCallbackRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -70,7 +86,9 @@ export interface FileRoutesById {
   '/deploy': typeof DeployRoute
   '/settings': typeof SettingsRoute
   '/project/$slug': typeof ProjectSlugRoute
+  '/api/github/repos': typeof ApiGithubReposRoute
   '/api/github/start': typeof ApiGithubStartRoute
+  '/api/public/github/callback': typeof ApiPublicGithubCallbackRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -80,7 +98,9 @@ export interface FileRouteTypes {
     | '/deploy'
     | '/settings'
     | '/project/$slug'
+    | '/api/github/repos'
     | '/api/github/start'
+    | '/api/public/github/callback'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -88,7 +108,9 @@ export interface FileRouteTypes {
     | '/deploy'
     | '/settings'
     | '/project/$slug'
+    | '/api/github/repos'
     | '/api/github/start'
+    | '/api/public/github/callback'
   id:
     | '__root__'
     | '/'
@@ -96,7 +118,9 @@ export interface FileRouteTypes {
     | '/deploy'
     | '/settings'
     | '/project/$slug'
+    | '/api/github/repos'
     | '/api/github/start'
+    | '/api/public/github/callback'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -105,7 +129,9 @@ export interface RootRouteChildren {
   DeployRoute: typeof DeployRoute
   SettingsRoute: typeof SettingsRoute
   ProjectSlugRoute: typeof ProjectSlugRoute
+  ApiGithubReposRoute: typeof ApiGithubReposRoute
   ApiGithubStartRoute: typeof ApiGithubStartRoute
+  ApiPublicGithubCallbackRoute: typeof ApiPublicGithubCallbackRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -152,6 +178,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiGithubStartRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/github/repos': {
+      id: '/api/github/repos'
+      path: '/api/github/repos'
+      fullPath: '/api/github/repos'
+      preLoaderRoute: typeof ApiGithubReposRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/github/callback': {
+      id: '/api/public/github/callback'
+      path: '/api/public/github/callback'
+      fullPath: '/api/public/github/callback'
+      preLoaderRoute: typeof ApiPublicGithubCallbackRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -161,7 +201,9 @@ const rootRouteChildren: RootRouteChildren = {
   DeployRoute: DeployRoute,
   SettingsRoute: SettingsRoute,
   ProjectSlugRoute: ProjectSlugRoute,
+  ApiGithubReposRoute: ApiGithubReposRoute,
   ApiGithubStartRoute: ApiGithubStartRoute,
+  ApiPublicGithubCallbackRoute: ApiPublicGithubCallbackRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

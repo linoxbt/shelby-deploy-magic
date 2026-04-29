@@ -1,5 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { Github, Plus, Server, ShieldCheck, UploadCloud, Wallet, Zap } from "lucide-react";
+import { useEffect, useState } from "react";
 import { AppShell, formatBytes, StatusBadge } from "../components/shelbyhost/AppShell";
 import { ProjectCard } from "../components/shelbyhost/ProjectCard";
 import { useShelbyHost } from "../context/ShelbyHostContext";
@@ -10,10 +11,36 @@ export const Route = createFileRoute("/dashboard")({
 });
 
 function Dashboard() {
-  const { projects, wallet, connectWallet, connectGithub, triggerGithubDeploy } = useShelbyHost();
+  const { projects, wallet, connectWallet, connectGithub } = useShelbyHost();
+  const [githubAccount, setGithubAccount] = useState<GithubAccount | null>(null);
+  const [repos, setRepos] = useState<GithubRepo[]>([]);
+  const [repoStatus, setRepoStatus] = useState("Connect GitHub to fetch your repositories.");
+  const [selectedRepo, setSelectedRepo] = useState<GithubRepo | null>(null);
   const totalSize = projects.reduce((sum, project) => sum + project.size, 0);
   const latestDeployments = projects.flatMap((project) => project.deployments.map((deployment) => ({ ...deployment, projectName: project.name, slug: project.slug }))).sort((a, b) => +new Date(b.timestamp) - +new Date(a.timestamp)).slice(0, 6);
   const firstProject = projects[0];
+
+  useEffect(() => {
+    let mounted = true;
+    fetch("/api/github/repos")
+      .then((response) => (response.ok ? response.json() : Promise.reject(new Error("Connect GitHub to fetch repositories."))))
+      .then((data: GithubReposResponse) => {
+        if (!mounted) return;
+        setGithubAccount(data.account);
+        setRepos(data.repos);
+        setSelectedRepo(data.repos[0] ?? null);
+        setRepoStatus(data.account ? `${data.repos.length} repositories available from @${data.account.login}.` : "Connect GitHub to fetch your repositories.");
+      })
+      .catch((error: Error) => mounted && setRepoStatus(error.message));
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  const importSelectedRepo = () => {
+    if (!firstProject || !selectedRepo) return;
+    connectGithub(firstProject.slug, { account: selectedRepo.owner, repository: selectedRepo.name, branch: selectedRepo.defaultBranch });
+  };
   const stats = [
     { label: "Total Projects", value: projects.length.toString(), icon: Server },
     { label: "Total Storage", value: formatBytes(totalSize), icon: UploadCloud },
