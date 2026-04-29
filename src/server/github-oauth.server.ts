@@ -51,7 +51,11 @@ export function encryptToken(token: string) {
   const cipher = createCipheriv("aes-256-gcm", encryptionKey(), iv);
   const encrypted = Buffer.concat([cipher.update(token, "utf8"), cipher.final()]);
   const tag = cipher.getAuthTag();
-  return [iv.toString("base64url"), tag.toString("base64url"), encrypted.toString("base64url")].join(".");
+  return [
+    iv.toString("base64url"),
+    tag.toString("base64url"),
+    encrypted.toString("base64url"),
+  ].join(".");
 }
 
 export function decryptToken(payload: string) {
@@ -59,7 +63,10 @@ export function decryptToken(payload: string) {
   if (!iv || !tag || !encrypted) throw new Error("Stored GitHub token is invalid");
   const decipher = createDecipheriv("aes-256-gcm", encryptionKey(), Buffer.from(iv, "base64url"));
   decipher.setAuthTag(Buffer.from(tag, "base64url"));
-  return Buffer.concat([decipher.update(Buffer.from(encrypted, "base64url")), decipher.final()]).toString("utf8");
+  return Buffer.concat([
+    decipher.update(Buffer.from(encrypted, "base64url")),
+    decipher.final(),
+  ]).toString("utf8");
 }
 
 export function getOrigin() {
@@ -121,17 +128,33 @@ async function exchangeCodeForToken(code: string) {
       redirect_uri: `${getOrigin()}/api/public/github/callback`,
     }),
   });
-  const data = (await response.json()) as { access_token?: string; scope?: string; error?: string; error_description?: string };
-  if (!response.ok || !data.access_token) throw new Error(data.error_description || data.error || "GitHub did not return an access token");
-  return { token: data.access_token, scopes: data.scope ? data.scope.split(",").filter(Boolean) : [] };
+  const data = (await response.json()) as {
+    access_token?: string;
+    scope?: string;
+    error?: string;
+    error_description?: string;
+  };
+  if (!response.ok || !data.access_token)
+    throw new Error(
+      data.error_description || data.error || "GitHub did not return an access token",
+    );
+  return {
+    token: data.access_token,
+    scopes: data.scope ? data.scope.split(",").filter(Boolean) : [],
+  };
 }
 
 async function githubFetch<T>(path: string, token: string) {
   const response = await fetch(`${GITHUB_API_URL}${path}`, {
-    headers: { Authorization: `Bearer ${token}`, Accept: "application/vnd.github+json", "X-GitHub-Api-Version": "2022-11-28" },
+    headers: {
+      Authorization: `Bearer ${token}`,
+      Accept: "application/vnd.github+json",
+      "X-GitHub-Api-Version": "2022-11-28",
+    },
   });
   const data = await response.json();
-  if (!response.ok) throw new Error(`GitHub request failed [${response.status}]: ${JSON.stringify(data)}`);
+  if (!response.ok)
+    throw new Error(`GitHub request failed [${response.status}]: ${JSON.stringify(data)}`);
   return data as T;
 }
 
@@ -147,10 +170,18 @@ export async function completeGithubOAuth(code: string, state: string) {
     .single();
 
   if (stateError || !stateRow) throw new Error("GitHub sign-in state could not be verified");
-  if (new Date(stateRow.expires_at).getTime() < Date.now()) throw new Error("GitHub sign-in state expired");
+  if (new Date(stateRow.expires_at).getTime() < Date.now())
+    throw new Error("GitHub sign-in state expired");
 
   const { token, scopes } = await exchangeCodeForToken(code);
-  const user = await githubFetch<{ id: number; login: string; name: string | null; avatar_url: string | null; html_url: string | null; type: string }>("/user", token);
+  const user = await githubFetch<{
+    id: number;
+    login: string;
+    name: string | null;
+    avatar_url: string | null;
+    html_url: string | null;
+    type: string;
+  }>("/user", token);
   const encryptedToken = encryptToken(token);
 
   const { data: account, error } = await (supabaseAdmin as any)
@@ -174,9 +205,14 @@ export async function completeGithubOAuth(code: string, state: string) {
     .select("id, login")
     .single();
 
-  if (error || !account) throw new Error(`Could not save GitHub account: ${error?.message ?? "Unknown error"}`);
+  if (error || !account)
+    throw new Error(`Could not save GitHub account: ${error?.message ?? "Unknown error"}`);
   await (supabaseAdmin as any).from("shelby_github_oauth_states").delete().eq("state", state);
-  await session.update({ ...session.data, githubAccountId: account.id, githubLogin: account.login });
+  await session.update({
+    ...session.data,
+    githubAccountId: account.id,
+    githubLogin: account.login,
+  });
   return stateRow.redirect_to as string;
 }
 
@@ -185,7 +221,9 @@ export async function getConnectedGithubAccount() {
   if (!session.data.ownerId || !session.data.githubAccountId) return null;
   const { data, error } = await (supabaseAdmin as any)
     .from("shelby_github_accounts")
-    .select("id, github_user_id, login, name, avatar_url, html_url, account_type, scopes, connected_at")
+    .select(
+      "id, github_user_id, login, name, avatar_url, html_url, account_type, scopes, connected_at",
+    )
     .eq("owner_id", session.data.ownerId)
     .eq("id", session.data.githubAccountId)
     .single();
@@ -195,7 +233,8 @@ export async function getConnectedGithubAccount() {
 
 export async function listGithubRepositories() {
   const session = await getGithubSession();
-  if (!session.data.ownerId || !session.data.githubAccountId) throw new Response("GitHub is not connected", { status: 401 });
+  if (!session.data.ownerId || !session.data.githubAccountId)
+    throw new Response("GitHub is not connected", { status: 401 });
 
   const { data: account, error } = await (supabaseAdmin as any)
     .from("shelby_github_accounts")
@@ -206,7 +245,19 @@ export async function listGithubRepositories() {
 
   if (error || !account) throw new Response("GitHub account was not found", { status: 404 });
   const token = decryptToken(account.access_token_encrypted);
-  const repos = await githubFetch<Array<{ id: number; name: string; full_name: string; owner: { login: string }; private: boolean; default_branch: string; html_url: string; pushed_at: string | null; language: string | null }>>(
+  const repos = await githubFetch<
+    Array<{
+      id: number;
+      name: string;
+      full_name: string;
+      owner: { login: string };
+      private: boolean;
+      default_branch: string;
+      html_url: string;
+      pushed_at: string | null;
+      language: string | null;
+    }>
+  >(
     "/user/repos?per_page=100&sort=pushed&affiliation=owner,collaborator,organization_member",
     token,
   );
