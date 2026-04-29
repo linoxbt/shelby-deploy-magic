@@ -119,7 +119,7 @@ export async function createGithubAuthUrl(redirectTo: string) {
   const state = randomBytes(24).toString("base64url");
   const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString();
 
-  const { error } = await (supabaseAdmin as any).from("shelby_github_oauth_states").insert({
+  const { error } = await shelbyDb.from("shelby_github_oauth_states").insert({
     state,
     owner_id: ownerId,
     redirect_to: redirectTo || "/dashboard",
@@ -183,7 +183,7 @@ export async function completeGithubOAuth(code: string, state: string) {
   const session = await getGithubSession();
   if (!session.data.ownerId) throw new Error("GitHub sign-in session expired");
 
-  const { data: stateRow, error: stateError } = await (supabaseAdmin as any)
+  const { data: stateRow, error: stateError } = await shelbyDb
     .from("shelby_github_oauth_states")
     .select("state, owner_id, redirect_to, expires_at")
     .eq("state", state)
@@ -205,7 +205,7 @@ export async function completeGithubOAuth(code: string, state: string) {
   }>("/user", token);
   const encryptedToken = encryptToken(token);
 
-  const { data: account, error } = await (supabaseAdmin as any)
+  const { data: account, error } = await shelbyDb
     .from("shelby_github_accounts")
     .upsert(
       {
@@ -228,7 +228,7 @@ export async function completeGithubOAuth(code: string, state: string) {
 
   if (error || !account)
     throw new Error(`Could not save GitHub account: ${error?.message ?? "Unknown error"}`);
-  await (supabaseAdmin as any).from("shelby_github_oauth_states").delete().eq("state", state);
+  await shelbyDb.from("shelby_github_oauth_states").delete().eq("state", state);
   await session.update({
     ...session.data,
     githubAccountId: account.id,
@@ -240,7 +240,7 @@ export async function completeGithubOAuth(code: string, state: string) {
 export async function getConnectedGithubAccount() {
   const session = await getGithubSession();
   if (!session.data.ownerId || !session.data.githubAccountId) return null;
-  const { data, error } = await (supabaseAdmin as any)
+  const { data, error } = await shelbyDb
     .from("shelby_github_accounts")
     .select(
       "id, github_user_id, login, name, avatar_url, html_url, account_type, scopes, connected_at",
@@ -257,7 +257,7 @@ export async function listGithubRepositories() {
   if (!session.data.ownerId || !session.data.githubAccountId)
     throw new Response("GitHub is not connected", { status: 401 });
 
-  const { data: account, error } = await (supabaseAdmin as any)
+  const { data: account, error } = await shelbyDb
     .from("shelby_github_accounts")
     .select("access_token_encrypted")
     .eq("owner_id", session.data.ownerId)
