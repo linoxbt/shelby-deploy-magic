@@ -32,6 +32,22 @@ export interface GithubRepo {
   language: string | null;
 }
 
+interface GithubOAuthStateRow {
+  state: string;
+  owner_id: string;
+  redirect_to: string;
+  expires_at: string;
+}
+
+interface SavedGithubAccountRow {
+  id: string;
+  login: string;
+}
+
+interface GithubTokenRow {
+  access_token_encrypted: string;
+}
+
 const GITHUB_AUTHORIZE_URL = "https://github.com/login/oauth/authorize";
 const GITHUB_TOKEN_URL = "https://github.com/login/oauth/access_token";
 const GITHUB_API_URL = "https://api.github.com";
@@ -184,7 +200,7 @@ export async function completeGithubOAuth(code: string, state: string) {
   if (!session.data.ownerId) throw new Error("GitHub sign-in session expired");
 
   const { data: stateRow, error: stateError } = await shelbyDb
-    .from("shelby_github_oauth_states")
+    .from<GithubOAuthStateRow>("shelby_github_oauth_states")
     .select("state, owner_id, redirect_to, expires_at")
     .eq("state", state)
     .eq("owner_id", session.data.ownerId)
@@ -206,7 +222,7 @@ export async function completeGithubOAuth(code: string, state: string) {
   const encryptedToken = encryptToken(token);
 
   const { data: account, error } = await shelbyDb
-    .from("shelby_github_accounts")
+    .from<SavedGithubAccountRow>("shelby_github_accounts")
     .upsert(
       {
         owner_id: session.data.ownerId,
@@ -241,7 +257,7 @@ export async function getConnectedGithubAccount() {
   const session = await getGithubSession();
   if (!session.data.ownerId || !session.data.githubAccountId) return null;
   const { data, error } = await shelbyDb
-    .from("shelby_github_accounts")
+    .from<GithubAccount>("shelby_github_accounts")
     .select(
       "id, github_user_id, login, name, avatar_url, html_url, account_type, scopes, connected_at",
     )
@@ -258,7 +274,7 @@ export async function listGithubRepositories() {
     throw new Response("GitHub is not connected", { status: 401 });
 
   const { data: account, error } = await shelbyDb
-    .from("shelby_github_accounts")
+    .from<GithubTokenRow>("shelby_github_accounts")
     .select("access_token_encrypted")
     .eq("owner_id", session.data.ownerId)
     .eq("id", session.data.githubAccountId)
