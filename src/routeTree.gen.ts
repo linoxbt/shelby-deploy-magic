@@ -14,6 +14,7 @@ import { Route as DeployRouteImport } from './routes/deploy'
 import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ProjectSlugRouteImport } from './routes/project.$slug'
+import { Route as ApiGithubStartRouteImport } from './routes/api/github/start'
 
 const SettingsRoute = SettingsRouteImport.update({
   id: '/settings',
@@ -40,6 +41,11 @@ const ProjectSlugRoute = ProjectSlugRouteImport.update({
   path: '/project/$slug',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiGithubStartRoute = ApiGithubStartRouteImport.update({
+  id: '/api/github/start',
+  path: '/api/github/start',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -47,6 +53,7 @@ export interface FileRoutesByFullPath {
   '/deploy': typeof DeployRoute
   '/settings': typeof SettingsRoute
   '/project/$slug': typeof ProjectSlugRoute
+  '/api/github/start': typeof ApiGithubStartRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -54,6 +61,7 @@ export interface FileRoutesByTo {
   '/deploy': typeof DeployRoute
   '/settings': typeof SettingsRoute
   '/project/$slug': typeof ProjectSlugRoute
+  '/api/github/start': typeof ApiGithubStartRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -62,12 +70,25 @@ export interface FileRoutesById {
   '/deploy': typeof DeployRoute
   '/settings': typeof SettingsRoute
   '/project/$slug': typeof ProjectSlugRoute
+  '/api/github/start': typeof ApiGithubStartRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/dashboard' | '/deploy' | '/settings' | '/project/$slug'
+  fullPaths:
+    | '/'
+    | '/dashboard'
+    | '/deploy'
+    | '/settings'
+    | '/project/$slug'
+    | '/api/github/start'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/dashboard' | '/deploy' | '/settings' | '/project/$slug'
+  to:
+    | '/'
+    | '/dashboard'
+    | '/deploy'
+    | '/settings'
+    | '/project/$slug'
+    | '/api/github/start'
   id:
     | '__root__'
     | '/'
@@ -75,6 +96,7 @@ export interface FileRouteTypes {
     | '/deploy'
     | '/settings'
     | '/project/$slug'
+    | '/api/github/start'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -83,6 +105,7 @@ export interface RootRouteChildren {
   DeployRoute: typeof DeployRoute
   SettingsRoute: typeof SettingsRoute
   ProjectSlugRoute: typeof ProjectSlugRoute
+  ApiGithubStartRoute: typeof ApiGithubStartRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -122,6 +145,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ProjectSlugRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/github/start': {
+      id: '/api/github/start'
+      path: '/api/github/start'
+      fullPath: '/api/github/start'
+      preLoaderRoute: typeof ApiGithubStartRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -131,6 +161,7 @@ const rootRouteChildren: RootRouteChildren = {
   DeployRoute: DeployRoute,
   SettingsRoute: SettingsRoute,
   ProjectSlugRoute: ProjectSlugRoute,
+  ApiGithubStartRoute: ApiGithubStartRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
