@@ -10,6 +10,29 @@ export const Route = createFileRoute("/dashboard")({
   component: Dashboard,
 });
 
+interface GithubAccount {
+  login: string;
+  avatar_url: string | null;
+  html_url: string | null;
+}
+
+interface GithubRepo {
+  id: number;
+  name: string;
+  fullName: string;
+  owner: string;
+  private: boolean;
+  defaultBranch: string;
+  htmlUrl: string;
+  pushedAt: string | null;
+  language: string | null;
+}
+
+interface GithubReposResponse {
+  account: GithubAccount | null;
+  repos: GithubRepo[];
+}
+
 function Dashboard() {
   const { projects, wallet, connectWallet, connectGithub } = useShelbyHost();
   const [githubAccount, setGithubAccount] = useState<GithubAccount | null>(null);
@@ -66,9 +89,13 @@ function Dashboard() {
         <section className="mt-8 grid gap-4 lg:grid-cols-[0.9fr_1.1fr]">
           <div className="rounded-lg border border-border bg-card p-5">
             <div className="flex items-center gap-3"><Github className="h-5 w-5 text-primary" /><h2 className="text-lg font-bold text-foreground">Import Git repository</h2></div>
-            <p className="mt-2 text-sm text-muted-foreground">Pick a repo and branch, then create preview deployments on every push.</p>
-            <div className="mt-4 grid gap-3 sm:grid-cols-3"><input defaultValue="shelby-labs" className="rounded-md border border-input bg-background px-3 py-2.5 text-sm text-foreground outline-none focus:border-primary" /><input defaultValue="shelby-frontend" className="rounded-md border border-input bg-background px-3 py-2.5 text-sm text-foreground outline-none focus:border-primary" /><input defaultValue="main" className="rounded-md border border-input bg-background px-3 py-2.5 text-sm text-foreground outline-none focus:border-primary" /></div>
-            <div className="mt-4 flex flex-wrap gap-3"><button disabled={!firstProject} onClick={() => firstProject && connectGithub(firstProject.slug, { account: "shelby-labs", repository: "shelby-frontend", branch: "main" })} className="rounded-md bg-primary px-4 py-2.5 text-sm font-bold text-primary-foreground disabled:opacity-50">Connect repo</button><button disabled={!firstProject} onClick={() => firstProject && triggerGithubDeploy(firstProject.slug)} className="rounded-md border border-border px-4 py-2.5 text-sm font-bold text-foreground disabled:opacity-50">Simulate push deploy</button></div>
+            <p className="mt-2 text-sm text-muted-foreground">Connect GitHub, choose a real repository, then attach it to your next deployment.</p>
+            <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center">
+              <a href="/api/github/start?redirect=/dashboard" className="inline-flex items-center justify-center gap-2 rounded-md bg-primary px-4 py-2.5 text-sm font-bold text-primary-foreground transition hover:bg-primary-hover"><Github className="h-4 w-4" /> {githubAccount ? `Connected @${githubAccount.login}` : "Connect GitHub"}</a>
+              {githubAccount?.avatar_url && <img src={githubAccount.avatar_url} alt={`${githubAccount.login} avatar`} className="h-10 w-10 rounded-full border border-border" />}
+            </div>
+            <p className="mt-3 text-sm text-muted-foreground">{repoStatus}</p>
+            {repos.length > 0 && <div className="mt-4 grid gap-3"><select value={selectedRepo?.id ?? ""} onChange={(event) => setSelectedRepo(repos.find((repo) => repo.id === Number(event.target.value)) ?? null)} className="rounded-md border border-input bg-background px-3 py-2.5 text-sm text-foreground outline-none focus:border-primary">{repos.map((repo) => <option key={repo.id} value={repo.id}>{repo.fullName} · {repo.defaultBranch}</option>)}</select><button disabled={!firstProject || !selectedRepo} onClick={importSelectedRepo} className="rounded-md bg-primary px-4 py-2.5 text-sm font-bold text-primary-foreground disabled:opacity-50">Use selected repo</button></div>}
             {firstProject?.github && <p className="mt-4 font-mono text-xs text-primary">{firstProject.github.repository}@{firstProject.github.branch} → {firstProject.github.workflowFile}</p>}
           </div>
 
