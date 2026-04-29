@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { ArrowRight, CheckCircle2, CloudUpload, GitBranch, Globe2, Network, ShieldCheck, Sparkles } from "lucide-react";
+import { ArrowRight, CloudUpload, GitBranch, Globe2, Sparkles } from "lucide-react";
 import { AptosWalletButton } from "../components/shelbyhost/AptosWallet";
 import { LogoMark } from "../components/shelbyhost/AppShell";
 import heroImage from "../assets/editorial-deploy-studio.jpg";
@@ -25,13 +25,13 @@ const features = [
 function Index() {
   return (
     <main className="min-h-screen overflow-hidden bg-background text-foreground">
-      <section className="relative min-h-[92vh] overflow-hidden bg-sidebar text-sidebar-foreground">
-        <img src={heroImage} alt="Editorial deploy studio with code preview" width={1600} height={1000} className="absolute inset-0 h-full w-full object-cover opacity-70" />
-        <div className="absolute inset-0 bg-sidebar/35" />
+      <section className="shelby-surface relative min-h-[92vh] overflow-hidden text-foreground">
+        <img src={heroImage} alt="Editorial deploy studio with code preview" width={1600} height={1000} className="absolute inset-0 h-full w-full object-cover opacity-16 mix-blend-multiply" />
+        <div className="absolute inset-0 bg-background/35" />
         <header className="relative z-10 mx-auto max-w-7xl px-5 py-6 sm:px-8">
           <div className="flex items-center justify-between">
           <LogoMark />
-          <nav className="hidden items-center gap-7 text-sm font-extrabold uppercase text-sidebar-foreground sm:flex">
+          <nav className="hidden items-center gap-7 text-sm font-extrabold uppercase text-foreground sm:flex">
             <a href="#features" className="transition hover:opacity-70">Features</a>
             <a href="#workflow" className="transition hover:opacity-70">Workflow</a>
             <Link to="/dashboard" className="transition hover:opacity-70">Dashboard</Link>
@@ -40,27 +40,27 @@ function Index() {
           <div className="sm:hidden"><AptosWalletButton compact /></div>
           </div>
           <nav className="mt-5 grid grid-cols-2 gap-2 text-sm font-bold sm:hidden">
-            <Link to="/dashboard" className="rounded-md border border-sidebar-foreground/35 bg-sidebar/40 px-3 py-2 text-center text-sidebar-foreground backdrop-blur transition hover:border-sidebar-foreground">Dashboard</Link>
-            <Link to="/deploy" className="rounded-md bg-sidebar-foreground px-3 py-2 text-center text-sidebar transition hover:opacity-90">Deploy</Link>
+            <Link to="/dashboard" className="rounded-md border border-foreground/20 bg-card/65 px-3 py-2 text-center text-foreground backdrop-blur transition hover:border-primary">Dashboard</Link>
+            <Link to="/deploy" className="rounded-md bg-primary px-3 py-2 text-center text-primary-foreground transition hover:bg-primary-hover">Deploy</Link>
           </nav>
         </header>
 
         <div className="relative z-10 mx-auto grid min-h-[76vh] max-w-7xl content-center px-5 pb-24 pt-12 text-center sm:px-8">
           <div className="mx-auto max-w-5xl animate-fade-in">
-          <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-sidebar-foreground/30 bg-sidebar/35 px-3 py-1.5 text-sm font-semibold text-sidebar-foreground backdrop-blur">
+          <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-primary/30 bg-card/70 px-3 py-1.5 text-sm font-semibold text-foreground shadow-panel backdrop-blur">
             <Sparkles className="h-4 w-4" /> deploy once. live forever.
           </div>
-          <h1 className="text-balance text-5xl font-extrabold leading-none tracking-normal text-sidebar-foreground sm:text-7xl lg:text-8xl">
+          <h1 className="text-balance text-5xl font-extrabold leading-none tracking-normal text-foreground sm:text-7xl lg:text-8xl">
             Deploy frontends with permanent ownership.
           </h1>
-          <p className="mx-auto mt-6 max-w-2xl text-lg leading-8 text-sidebar-foreground/80">
+          <p className="mx-auto mt-6 max-w-2xl text-lg leading-8 text-muted-foreground">
             A Vercel-inspired workflow for Shelby deployments: previews, Git automation, domains, rollbacks, and Aptos-backed content hashes.
           </p>
           <div className="mt-9 flex flex-col justify-center gap-3 sm:flex-row">
-            <Link to="/deploy" className="inline-flex items-center justify-center gap-2 rounded-md bg-sidebar-foreground px-6 py-4 text-sm font-extrabold text-sidebar transition hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-sidebar-foreground">
+            <Link to="/deploy" className="inline-flex items-center justify-center gap-2 rounded-md bg-primary px-6 py-4 text-sm font-extrabold text-primary-foreground shadow-glow transition hover:bg-primary-hover focus:outline-none focus:ring-2 focus:ring-ring">
               Deploy Now <ArrowRight className="h-4 w-4" />
             </Link>
-            <Link to="/dashboard" className="inline-flex items-center justify-center rounded-md border border-sidebar-foreground/35 bg-sidebar/25 px-6 py-4 text-sm font-extrabold text-sidebar-foreground backdrop-blur transition hover:border-sidebar-foreground">
+            <Link to="/dashboard" className="inline-flex items-center justify-center rounded-md border border-foreground/20 bg-card/65 px-6 py-4 text-sm font-extrabold text-foreground backdrop-blur transition hover:border-primary hover:text-primary">
               View Dashboard
             </Link>
           </div>
