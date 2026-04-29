@@ -102,6 +102,57 @@ export type Database = {
           },
         ]
       }
+      shelby_github_accounts: {
+        Row: {
+          access_token_encrypted: string
+          account_type: string
+          avatar_url: string | null
+          connected_at: string
+          created_at: string
+          github_user_id: number
+          html_url: string | null
+          id: string
+          login: string
+          name: string | null
+          owner_id: string
+          scopes: string[]
+          token_last_four: string | null
+          updated_at: string
+        }
+        Insert: {
+          access_token_encrypted: string
+          account_type?: string
+          avatar_url?: string | null
+          connected_at?: string
+          created_at?: string
+          github_user_id: number
+          html_url?: string | null
+          id?: string
+          login: string
+          name?: string | null
+          owner_id?: string
+          scopes?: string[]
+          token_last_four?: string | null
+          updated_at?: string
+        }
+        Update: {
+          access_token_encrypted?: string
+          account_type?: string
+          avatar_url?: string | null
+          connected_at?: string
+          created_at?: string
+          github_user_id?: number
+          html_url?: string | null
+          id?: string
+          login?: string
+          name?: string | null
+          owner_id?: string
+          scopes?: string[]
+          token_last_four?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       shelby_github_connections: {
         Row: {
           account: string
@@ -148,6 +199,30 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      shelby_github_oauth_states: {
+        Row: {
+          created_at: string
+          expires_at: string
+          owner_id: string
+          redirect_to: string
+          state: string
+        }
+        Insert: {
+          created_at?: string
+          expires_at: string
+          owner_id?: string
+          redirect_to?: string
+          state: string
+        }
+        Update: {
+          created_at?: string
+          expires_at?: string
+          owner_id?: string
+          redirect_to?: string
+          state?: string
+        }
+        Relationships: []
       }
       shelby_projects: {
         Row: {
