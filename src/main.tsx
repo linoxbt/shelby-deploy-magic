@@ -4,18 +4,18 @@ import { RouterProvider } from '@tanstack/react-router'
 import { getRouter } from './router'
 import './styles.css'
 import { ShelbyHostProvider } from './context/ShelbyHostContext'
-import { AptosWalletClient } from './components/shelbyhost/AptosWalletClient'
+import { AptosProviderClient } from './components/shelbyhost/AptosWalletClient'
 import { Toaster } from 'sonner'
 
 const router = getRouter()
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <AptosWalletClient>
+    <AptosProviderClient>
       <ShelbyHostProvider>
         <RouterProvider router={router} />
         <Toaster position="top-center" richColors />
       </ShelbyHostProvider>
-    </AptosWalletClient>
+    </AptosProviderClient>
   </StrictMode>,
 )
