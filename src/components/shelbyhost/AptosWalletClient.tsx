@@ -1,7 +1,8 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { AptosWalletAdapterProvider, useWallet } from "@aptos-labs/wallet-adapter-react";
 import { Network } from "@aptos-labs/ts-sdk";
 import { Check, ChevronDown, Copy, ExternalLink, LogOut, Repeat2, Wallet } from "lucide-react";
+import { setCachedAddress, setCachedSignAndSubmit } from "./AptosWallet";
 
 const supportedWallets = [
   { name: "Petra", url: "https://petra.app/" },
@@ -29,13 +30,18 @@ function shortAddress(address?: string) {
 }
 
 export function AptosWalletButtonClient({ compact = false }: { compact?: boolean }) {
-  const { account, changeNetwork, connect, connected, disconnect, network, notDetectedWallets, wallet, wallets } = useWallet();
+  const { account, changeNetwork, connect, connected, disconnect, network, notDetectedWallets, wallet, wallets, signAndSubmitTransaction } = useWallet();
   const [open, setOpen] = useState(false);
   const [copied, setCopied] = useState(false);
   const address = account?.address?.toString();
   const detectedNames = useMemo(() => new Set(wallets.map((item) => item.name.toLowerCase())), [wallets]);
   const installOptions = supportedWallets.filter((item) => !detectedNames.has(item.name.toLowerCase()));
   const detectedSupported = wallets.filter((item) => supportedWallets.some((supported) => supported.name.toLowerCase() === item.name.toLowerCase()));
+
+  useEffect(() => {
+    setCachedAddress(connected ? address : undefined);
+    setCachedSignAndSubmit(connected ? signAndSubmitTransaction : undefined);
+  }, [connected, address, signAndSubmitTransaction]);
 
   const selectWallet = async (walletName: string) => {
     if (wallet?.name === walletName && connected) return;

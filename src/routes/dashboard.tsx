@@ -43,7 +43,7 @@ interface GithubReposResponse {
 }
 
 function Dashboard() {
-  const { projects, wallet, connectWallet, connectGithub } = useShelbyHost();
+  const { projects, wallet, connectWallet, connectGithub, fetchGithubRepos } = useShelbyHost();
   const [githubAccount, setGithubAccount] = useState<GithubAccount | null>(null);
   const [repos, setRepos] = useState<GithubRepo[]>([]);
   const [repoStatus, setRepoStatus] = useState("Connect GitHub to fetch your repositories.");
@@ -62,29 +62,29 @@ function Dashboard() {
   const firstProject = projects[0];
 
   useEffect(() => {
-    let mounted = true;
-    fetch("/api/github/repos")
-      .then((response) =>
-        response.ok
-          ? response.json()
-          : Promise.reject(new Error("Connect GitHub to fetch repositories.")),
-      )
-      .then((data: GithubReposResponse) => {
-        if (!mounted) return;
-        setGithubAccount(data.account);
-        setRepos(data.repos);
-        setSelectedRepo(data.repos[0] ?? null);
-        setRepoStatus(
-          data.account
-            ? `${data.repos.length} repositories available from @${data.account.login}.`
-            : "Connect GitHub to fetch your repositories.",
-        );
-      })
-      .catch((error: Error) => mounted && setRepoStatus(error.message));
-    return () => {
-      mounted = false;
+    const loadData = async () => {
+      try {
+        const data = await fetchGithubRepos();
+        if (data && data.length > 0) {
+          setRepos(data.map((r: any) => ({
+            id: r.id,
+            name: r.name,
+            fullName: r.full_name,
+            owner: r.owner.login,
+            private: r.private,
+            defaultBranch: r.default_branch,
+            htmlUrl: r.html_url,
+            pushedAt: r.pushed_at,
+            language: r.language
+          })));
+          setRepoStatus(`${data.length} repositories fetched from GitHub.`);
+        }
+      } catch (error) {
+        console.error("Dashboard repo fetch error:", error);
+      }
     };
-  }, []);
+    loadData();
+  }, [fetchGithubRepos]);
 
   const importSelectedRepo = () => {
     if (!firstProject || !selectedRepo) return;
@@ -156,13 +156,13 @@ function Dashboard() {
               Connect GitHub, choose a real repository, then attach it to your next deployment.
             </p>
             <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center">
-              <a
-                href="/api/github/start?redirect=/dashboard"
+              <button
+                onClick={fetchGithubRepos}
                 className="inline-flex items-center justify-center gap-2 rounded-md bg-primary px-4 py-2.5 text-sm font-bold text-primary-foreground transition hover:bg-primary-hover"
               >
                 <Github className="h-4 w-4" />{" "}
                 {githubAccount ? `Connected @${githubAccount.login}` : "Connect GitHub"}
-              </a>
+              </button>
               {githubAccount?.avatar_url && (
                 <img
                   src={githubAccount.avatar_url}

@@ -1,8 +1,11 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { AlertTriangle, CheckCircle2, Copy, FileCode2, Github, Globe2, Loader2, UploadCloud, X } from "lucide-react";
+import { AlertTriangle, ArrowRight, CheckCircle2, Copy, FileCode2, Github, Globe2, Loader2, UploadCloud, X } from "lucide-react";
 import { useMemo, useState } from "react";
+import { toast } from "sonner";
+import { Aptos, AptosConfig, Network } from "@aptos-labs/ts-sdk";
 import { AppShell, formatBytes } from "../components/shelbyhost/AppShell";
 import { useShelbyHost, type FileEntry, type Project } from "../context/ShelbyHostContext";
+import { AptosWalletButton, useAptosAddress, getAptosSignAndSubmit } from "../components/shelbyhost/AptosWallet";
 
 export const Route = createFileRoute("/deploy")({
   head: () => ({ meta: [{ title: "Deploy — ShelbyHost" }, { name: "description", content: "Deploy a static site to ShelbyHost by upload, GitHub Actions, or pre-built output." }] }),
@@ -10,9 +13,11 @@ export const Route = createFileRoute("/deploy")({
 });
 
 const deploymentSteps = ["Checking build output...", "Uploading to Shelby nodes...", "Registering Aptos content hash...", "Writing domain KV route...", "Deployment complete!"];
+const REGISTRY_ADDRESS = "0xc36c2abd4d6a6fd5d3c5823588d15c9ac5ae90a2357c3ce3083a98ce2184e4af";
 
 function Deploy() {
-  const { addProject, generateHash, generateSlug, checkBuildOutput, connectWallet, wallet } = useShelbyHost();
+  const { addProject, generateHash, generateSlug, checkBuildOutput, wallet, fetchGithubRepos } = useShelbyHost();
+  const aptosAddress = useAptosAddress();
   const [name, setName] = useState("my-dapp");
   const [description, setDescription] = useState("Static frontend deployed through ShelbyHost.");
   const [framework, setFramework] = useState("vite");
@@ -22,6 +27,9 @@ function Deploy() {
     { name: "dist/assets/main.js", size: 224800, type: "JS", path: "/dist/assets/main.js" },
     { name: "dist/assets/style.css", size: 32800, type: "CSS", path: "/dist/assets/style.css" },
   ]);
+  const [repos, setRepos] = useState<any[]>([]);
+  const [fetchingRepos, setFetchingRepos] = useState(false);
+  const [selectedRepo, setSelectedRepo] = useState<any>(null);
   const [activeStep, setActiveStep] = useState(0);
   const [deployed, setDeployed] = useState<Project | null>(null);
   const [copied, setCopied] = useState(false);
@@ -29,18 +37,91 @@ function Deploy() {
   const size = files.reduce((sum, file) => sum + file.size, 0);
   const buildCheck = checkBuildOutput(files, buildOutput);
 
-  const deploy = () => {
+  const deploy = async () => {
     setDeployed(null);
     setActiveStep(0);
-    deploymentSteps.forEach((_, index) => window.setTimeout(() => setActiveStep(index), 650 * (index + 1)));
-    window.setTimeout(() => {
-      const hash = generateHash();
-      const project = addProject({ name, slug, description, files, size, hash, source: "drag-drop", framework, buildOutput, chain: "aptos", walletAddress: wallet?.address });
-      setDeployed(project);
-    }, 3600);
+    
+    if (!buildCheck.valid) return;
+    
+    try {
+      setActiveStep(1);
+      const hash = await generateHash(files);
+      
+      setActiveStep(2);
+      const signAndSubmit = getAptosSignAndSubmit();
+      if (signAndSubmit && aptosAddress) {
+        const response = await signAndSubmit({
+          sender: aptosAddress,
+          data: {
+            function: `${REGISTRY_ADDRESS}::registry::register_project`,
+            typeArguments: [],
+            functionArguments: [name, hash]
+          }
+        });
+        
+        const aptos = new Aptos(new AptosConfig({ network: Network.TESTNET }));
+        await aptos.waitForTransaction({ transactionHash: response.hash });
+      } else {
+        toast.error("Wallet not fully connected.");
+        return;
+      }
+      
+      setActiveStep(3);
+      const project = await addProject({ 
+        name, 
+        slug, 
+        description, 
+        files, 
+        size, 
+        hash, 
+        source: "drag-drop", 
+        framework, 
+        buildOutput, 
+        chain: "aptos", 
+        walletAddress: aptosAddress || wallet?.address 
+      });
+      
+      if (project) {
+        setActiveStep(4);
+        setDeployed(project);
+      }
+    } catch (err: any) {
+      console.error("Deployment error:", err);
+      toast.error(`Deployment failed: ${err.message}`);
+    }
   };
 
-  const addMockFile = () => setFiles((current) => [...current, { name: `${buildOutput}/assets/module-${current.length}.js`, size: 42000 + current.length * 1000, type: "JS", path: `/${buildOutput}/assets/module-${current.length}.js` }]);
+  const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const selectedFiles = event.target.files;
+    if (!selectedFiles || selectedFiles.length === 0) return;
+    
+    const newFiles: FileEntry[] = Array.from(selectedFiles).map((file) => ({
+      name: file.name,
+      size: file.size,
+      type: file.type || "application/octet-stream",
+      path: file.webkitRelativePath ? `/${file.webkitRelativePath}` : `/${file.name}`,
+      file: file
+    }));
+    
+    setFiles(newFiles);
+  };
+
+  const loadRepos = async () => {
+    setFetchingRepos(true);
+    try {
+      const data = await fetchGithubRepos();
+      setRepos(data);
+    } finally {
+      setFetchingRepos(false);
+    }
+  };
+
+  const selectRepo = (repo: any) => {
+    setSelectedRepo(repo);
+    setName(repo.name);
+    setDescription(repo.description || `Imported from ${repo.full_name}`);
+  };
+
   const breakOutput = () => setFiles((current) => current.filter((file) => !file.path.endsWith("/index.html")));
   const restoreOutput = () => setFiles((current) => [{ name: `${buildOutput}/index.html`, size: 18420, type: "HTML", path: `/${buildOutput}/index.html` }, ...current.filter((file) => !file.path.endsWith("/index.html"))]);
 
@@ -58,18 +139,57 @@ function Deploy() {
           <p className="text-sm font-extrabold uppercase text-muted-foreground">New deployment</p>
           <h1 className="mt-2 text-4xl font-extrabold text-foreground">Ship from upload or Git.</h1>
           <div className="mt-6 grid gap-3 md:grid-cols-3">
-            {[{ icon: UploadCloud, title: "Drag & drop" }, { icon: Github, title: "GitHub repo" }, { icon: Globe2, title: "Custom domain" }].map((item) => {
-              const Icon = item.icon;
-                return <div key={item.title} className="rounded-md border border-border bg-secondary p-4"><Icon className="h-5 w-5 text-primary" /><p className="mt-3 text-sm font-bold text-foreground">{item.title}</p></div>;
-            })}
+            <button onClick={() => { setSelectedRepo(null); setRepos([]); }} className={`rounded-md border p-4 text-left transition ${!selectedRepo ? "border-primary bg-primary/5" : "border-border bg-secondary"}`}>
+              <UploadCloud className="h-5 w-5 text-primary" />
+              <p className="mt-3 text-sm font-bold text-foreground">Drag & drop</p>
+            </button>
+            <button onClick={loadRepos} className={`rounded-md border p-4 text-left transition ${selectedRepo || repos.length > 0 ? "border-primary bg-primary/5" : "border-border bg-secondary"}`}>
+              <Github className="h-5 w-5 text-primary" />
+              <p className="mt-3 text-sm font-bold text-foreground">GitHub repo</p>
+            </button>
+            <div className="rounded-md border border-border bg-secondary p-4">
+              <Globe2 className="h-5 w-5 text-primary" />
+              <p className="mt-3 text-sm font-bold text-foreground">Custom domain</p>
+            </div>
           </div>
 
-          <button onClick={addMockFile} className="mt-6 flex min-h-52 w-full scale-100 flex-col items-center justify-center rounded-lg border border-dashed border-border bg-background/40 p-8 text-center transition hover:scale-[1.01] hover:border-primary hover:shadow-glow">
-            <UploadCloud className="h-10 w-10 text-primary" />
-            <span className="mt-4 text-lg font-bold text-foreground">Drop a production build</span>
-            <span className="mt-2 text-sm text-muted-foreground">Create a preview, validate output, then promote to live.</span>
-            <span className="mt-3 text-sm font-semibold text-primary">Click to add a mock asset</span>
-          </button>
+          {repos.length > 0 && !selectedRepo && (
+            <div className="mt-6 max-h-64 overflow-y-auto rounded-lg border border-border bg-background/50 p-2">
+              <p className="px-2 py-1 text-xs font-bold uppercase text-muted-foreground">Select a repository</p>
+              {repos.map((repo) => (
+                <button
+                  key={repo.id}
+                  onClick={() => selectRepo(repo)}
+                  className="flex w-full items-center justify-between rounded-md p-3 text-left hover:bg-secondary transition"
+                >
+                  <div className="flex items-center gap-3">
+                    <Github className="h-4 w-4 text-muted-foreground" />
+                    <span className="text-sm font-semibold text-foreground">{repo.full_name}</span>
+                    {repo.private && <span className="rounded-full bg-border px-2 py-0.5 text-[10px] font-bold text-muted-foreground">Private</span>}
+                  </div>
+                  <ArrowRight className="h-4 w-4 text-muted-foreground" />
+                </button>
+              ))}
+            </div>
+          )}
+
+          {selectedRepo ? (
+             <div className="mt-6 rounded-lg border border-primary/30 bg-primary/5 p-6 text-center">
+                <Github className="mx-auto h-10 w-10 text-primary" />
+                <h3 className="mt-4 text-lg font-bold text-foreground">{selectedRepo.full_name}</h3>
+                <p className="mt-1 text-sm text-muted-foreground">Branch: {selectedRepo.default_branch}</p>
+                <button onClick={() => setSelectedRepo(null)} className="mt-4 text-xs font-bold text-primary hover:underline">Change repository</button>
+             </div>
+          ) : (
+            <label className="mt-6 flex min-h-52 w-full scale-100 flex-col items-center justify-center rounded-lg border border-dashed border-border bg-background/40 p-8 text-center transition cursor-pointer hover:scale-[1.01] hover:border-primary hover:shadow-glow">
+              <UploadCloud className="h-10 w-10 text-primary" />
+              <span className="mt-4 text-lg font-bold text-foreground">Drop a production build</span>
+              <span className="mt-2 text-sm text-muted-foreground">Select a directory to upload, validate output, then promote to live.</span>
+              <span className="mt-3 text-sm font-semibold text-primary">Click to select folder</span>
+              {/* @ts-ignore */}
+              <input type="file" className="hidden" webkitdirectory="" directory="" onChange={handleFileSelect} />
+            </label>
+          )}
 
           <div className={`mt-5 rounded-md border p-4 ${buildCheck.valid ? "border-success/30 bg-success/10" : "border-destructive/30 bg-destructive/10"}`}>
             <div className="flex items-start gap-3">
@@ -89,8 +209,8 @@ function Deploy() {
             <label className="grid gap-2 text-sm font-semibold text-foreground">Description<textarea value={description} onChange={(event) => setDescription(event.target.value)} rows={2} className="rounded-md border border-input bg-background px-3 py-3 text-foreground outline-none transition focus:border-primary focus:ring-2 focus:ring-ring" /></label>
             <div className="grid gap-3 sm:grid-cols-2"><label className="grid gap-2 text-sm font-semibold text-foreground">Framework<input value={framework} onChange={(event) => setFramework(event.target.value)} className="rounded-md border border-input bg-background px-3 py-3 text-foreground outline-none transition focus:border-primary focus:ring-2 focus:ring-ring" /></label><label className="grid gap-2 text-sm font-semibold text-foreground">Build output<input value={buildOutput} onChange={(event) => setBuildOutput(event.target.value)} className="rounded-md border border-input bg-background px-3 py-3 text-foreground outline-none transition focus:border-primary focus:ring-2 focus:ring-ring" /></label></div>
             <div className="rounded-md border border-border bg-secondary p-3 font-mono text-sm text-primary">Preview URL: shelbyhost.pages.dev/p/{slug}</div>
-            <button onClick={() => connectWallet("aptos")} className="h-11 rounded-md border border-primary/40 px-5 text-sm font-extrabold text-primary transition hover:bg-primary/10">{wallet ? `Aptos connected: ${wallet.address}` : "Connect Aptos Wallet"}</button>
-            <button onClick={deploy} disabled={!buildCheck.valid} className="h-12 rounded-md bg-primary px-5 text-sm font-extrabold text-primary-foreground transition hover:bg-primary-hover hover:shadow-glow disabled:cursor-not-allowed disabled:opacity-50">Create Deployment</button>
+            <AptosWalletButton />
+            <button onClick={deploy} disabled={!buildCheck.valid || (!aptosAddress && !wallet?.address)} className="h-12 rounded-md bg-primary px-5 text-sm font-extrabold text-primary-foreground transition hover:bg-primary-hover hover:shadow-glow disabled:cursor-not-allowed disabled:opacity-50">Create Deployment</button>
           </div>
         </section>
 

@@ -3,6 +3,37 @@ import { ChevronDown, Wallet } from "lucide-react";
 
 type AptosClientModule = typeof import("./AptosWalletClient");
 
+let cachedAddress: string | undefined = undefined;
+const listeners = new Set<(addr: string | undefined) => void>();
+
+export function setCachedAddress(address: string | undefined) {
+  if (cachedAddress !== address) {
+    cachedAddress = address;
+    listeners.forEach((l) => l(address));
+  }
+}
+
+let cachedSignAndSubmit: ((tx: any) => Promise<any>) | undefined = undefined;
+
+export function setCachedSignAndSubmit(fn: ((tx: any) => Promise<any>) | undefined) {
+  cachedSignAndSubmit = fn;
+}
+
+export function getAptosSignAndSubmit() {
+  return cachedSignAndSubmit;
+}
+
+export function useAptosAddress() {
+  const [address, setAddress] = useState<string | undefined>(cachedAddress);
+  useEffect(() => {
+    listeners.add(setAddress);
+    return () => {
+      listeners.delete(setAddress);
+    };
+  }, []);
+  return address;
+}
+
 export function AptosProvider({ children }: { children: React.ReactNode }) {
   const [Provider, setProvider] = useState<AptosClientModule["AptosProviderClient"] | null>(null);
 

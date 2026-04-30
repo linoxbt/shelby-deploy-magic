@@ -10,7 +10,7 @@ export const Route = createFileRoute("/")({
       { title: "ShelbyHost — Decentralized Frontend Hosting" },
       { name: "description", content: "Deploy static frontends to Shelby decentralized hot storage with GitHub deploys, custom domains, and zero-budget hosting." },
       { property: "og:title", content: "ShelbyHost — deploy once. live forever." },
-      { property: "og:description", content: "A Vercel-inspired dashboard for Shelby-powered permanent frontend hosting." },
+      { property: "og:description", content: "A modern control plane for Shelby-powered permanent frontend hosting." },
     ],
   }),
   component: Index,
@@ -54,7 +54,7 @@ function Index() {
             Deploy frontends with permanent ownership.
           </h1>
           <p className="mx-auto mt-6 max-w-2xl text-lg leading-8 text-muted-foreground">
-            A Vercel-inspired workflow for Shelby deployments: previews, Git automation, domains, rollbacks, and Aptos-backed content hashes.
+            A professional deployment workflow for Shelby: previews, Git automation, custom domains, instant rollbacks, and Aptos-backed content hashes.
           </p>
           <div className="mt-9 flex flex-col justify-center gap-3 sm:flex-row">
             <Link to="/deploy" className="inline-flex items-center justify-center gap-2 rounded-md bg-primary px-6 py-4 text-sm font-extrabold text-primary-foreground shadow-glow transition hover:bg-primary-hover focus:outline-none focus:ring-2 focus:ring-ring">
