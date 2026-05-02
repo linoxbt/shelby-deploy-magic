@@ -1,6 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { Github, Plus, Server, ShieldCheck, UploadCloud, Wallet, Zap } from "lucide-react";
 import { useEffect, useState } from "react";
+import { usePrivy } from "@privy-io/react-auth";
 import { AppShell, formatBytes, StatusBadge } from "../components/shelbyhost/AppShell";
 import { ProjectCard } from "../components/shelbyhost/ProjectCard";
 import { useShelbyHost } from "../context/ShelbyHostContext";
@@ -43,8 +44,23 @@ interface GithubReposResponse {
 }
 
 function Dashboard() {
-  const { projects, wallet, connectWallet, connectGithub, fetchGithubRepos } = useShelbyHost();
+  const { projects, wallet, connectWallet, connectGithub, fetchGithubRepos, linkGithub } = useShelbyHost();
+  const { user } = usePrivy();
   const [githubAccount, setGithubAccount] = useState<GithubAccount | null>(null);
+
+  useEffect(() => {
+    const github = user?.linkedAccounts.find(acc => acc.type === 'github_oauth') as any;
+    if (github) {
+      setGithubAccount({
+        login: github.username || github.name || "User",
+        avatar_url: null, // Privy might not provide this directly in the account object
+        html_url: null
+      });
+    } else {
+      setGithubAccount(null);
+    }
+  }, [user]);
+
   const [repos, setRepos] = useState<GithubRepo[]>([]);
   const [repoStatus, setRepoStatus] = useState("Connect GitHub to fetch your repositories.");
   const [selectedRepo, setSelectedRepo] = useState<GithubRepo | null>(null);
@@ -157,11 +173,11 @@ function Dashboard() {
             </p>
             <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center">
               <button
-                onClick={fetchGithubRepos}
+                onClick={githubAccount ? fetchGithubRepos : linkGithub}
                 className="inline-flex items-center justify-center gap-2 rounded-md bg-primary px-4 py-2.5 text-sm font-bold text-primary-foreground transition hover:bg-primary-hover"
               >
                 <Github className="h-4 w-4" />{" "}
-                {githubAccount ? `Connected @${githubAccount.login}` : "Connect GitHub"}
+                {githubAccount ? `Connected @${githubAccount.login}` : "Link GitHub with Privy"}
               </button>
               {githubAccount?.avatar_url && (
                 <img

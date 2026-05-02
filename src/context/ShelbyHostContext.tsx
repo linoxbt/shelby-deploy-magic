@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { usePrivy } from "@privy-io/react-auth";
 
 export type ProjectStatus = "live" | "processing" | "failed";
 export type DeploymentStatus = "queued" | "succeeded" | "failed";
@@ -23,78 +24,62 @@ export interface DeploymentAttempt {
   timestamp: string;
   versionUrl: string;
   hash: string;
-  message: string;
-}
-
-export interface CustomDomain {
-  domain: string;
-  status: "verified" | "pending" | "failed";
-  target: string;
-  slug: string;
-  hash: string;
-  kvKey: string;
-}
-
-export interface GithubConnection {
-  account: string;
-  repository: string;
-  branch: string;
-  workflowFile: string;
-  webhookStatus: "active" | "paused" | "failed";
-  lastPushAt?: string;
-}
-
-export interface WalletConnection {
-  chain: Chain;
-  provider: "Petra" | "Martian" | "Shelby Wallet";
-  address: string;
-  status: "connected" | "disconnected";
-}
-
-export interface BuildCheck {
-  valid: boolean;
-  expectedFile: string;
-  message: string;
+  message?: string;
 }
 
 export interface Project {
   id: string;
   name: string;
   slug: string;
-  description: string;
+  description?: string;
   files: FileEntry[];
-  deployedAt: string;
+  deployedAt: string | null;
   size: number;
   hash: string;
   status: ProjectStatus;
   source: "drag-drop" | "github";
-  framework: string;
-  buildOutput: string;
-  latestVersionUrl: string;
+  framework?: string;
+  buildOutput?: string;
+  latestVersionUrl?: string;
   chain: Chain;
   walletAddress?: string;
-  domain?: CustomDomain;
-  github?: GithubConnection;
+  domain?: {
+    domain: string;
+    status: "active" | "pending" | "error";
+    target: string;
+    slug: string;
+    hash: string;
+    kvKey: string;
+  };
+  github?: {
+    account: string;
+    repository: string;
+    branch: string;
+    workflowFile?: string;
+    webhookStatus?: "active" | "inactive";
+    lastPushAt?: string;
+  };
   deployments: DeploymentAttempt[];
+}
+
+export interface WalletConnection {
+  chain: Chain;
+  provider: "petra" | "martian" | "fewcha" | "shelby-vault";
+  address: string;
+  status: "connected" | "disconnected";
 }
 
 interface ShelbyHostContextValue {
   projects: Project[];
   loading: boolean;
   wallet?: WalletConnection;
-  domainMappings: CustomDomain[];
-  addProject: (project: Omit<Project, "id" | "deployedAt" | "status" | "deployments" | "latestVersionUrl">) => Promise<Project | null>;
-  updateProject: (slug: string, patch: Partial<Project>, trigger?: DeploymentTrigger) => Promise<void>;
-  deleteProject: (slug: string) => Promise<void>;
-  registerDomain: (slug: string, domain: string) => Promise<void>;
-  connectGithub: (slug: string, connection: Omit<GithubConnection, "workflowFile" | "webhookStatus" | "lastPushAt">) => Promise<void>;
-  triggerGithubDeploy: (slug: string) => Promise<void>;
-  connectWallet: (chain?: Chain) => Promise<WalletConnection | null>;
-  checkBuildOutput: (files: FileEntry[], buildOutput: string) => BuildCheck;
-  generateSlug: (name: string) => string;
-  generateHash: (files: FileEntry[]) => Promise<string>;
-  generateRandomHash: () => string;
+  createProject: (data: Partial<Project>) => Promise<Project | null>;
+  deployProject: (projectId: string, files: FileEntry[], message?: string) => Promise<boolean>;
+  deleteProject: (projectId: string) => Promise<boolean>;
+  connectWallet: (chain: Chain, address: string, provider: string) => Promise<WalletConnection | null>;
+  connectGithub: (slug: string, githubData: Project["github"]) => Promise<boolean>;
   fetchGithubRepos: () => Promise<any[]>;
+  linkGithub: () => Promise<void>;
 }
 
 const ShelbyHostContext = createContext<ShelbyHostContextValue | null>(null);
@@ -132,12 +117,14 @@ export function ShelbyHostProvider({ children }: { children: React.ReactNode }) 
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
   const [wallet, setWallet] = useState<WalletConnection | undefined>();
+  const { user, authenticated, linkGithub: privyLinkGithub } = usePrivy();
 
   const fetchProjects = async () => {
     try {
       setLoading(true);
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
+      // Use Privy authentication state instead of Supabase auth directly if possible, 
+      // but keep Supabase for DB access. We'll use the user ID from Privy if available.
+      if (!authenticated || !user) {
         setProjects([]);
         setLoading(false);
         return;
@@ -203,7 +190,7 @@ export function ShelbyHostProvider({ children }: { children: React.ReactNode }) 
       setProjects(mappedProjects);
     } catch (error: any) {
       console.error("Error fetching projects:", error);
-      toast.error("Failed to load projects from Supabase");
+      toast.error("Failed to load projects");
     } finally {
       setLoading(false);
     }
@@ -211,292 +198,154 @@ export function ShelbyHostProvider({ children }: { children: React.ReactNode }) 
 
   useEffect(() => {
     fetchProjects();
+  }, [authenticated, user]);
 
-    const { data: authListener } = supabase.auth.onAuthStateChange((event) => {
-      if (event === "SIGNED_IN") {
-        fetchProjects();
-      } else if (event === "SIGNED_OUT") {
-        setProjects([]);
-      }
-    });
-
-    return () => {
-      authListener.subscription.unsubscribe();
-    };
-  }, []);
-
-  const value = useMemo<ShelbyHostContextValue>(() => {
-    const generateSlug = (name: string) =>
-      name
-        .toLowerCase()
-        .replace(/[^a-z0-9]+/g, "-")
-        .replace(/^-|-$/g, "") || "untitled-project";
-
-    const checkBuildOutput = (files: FileEntry[], buildOutput: string): BuildCheck => {
-      const cleanOutput = buildOutput.replace(/^\/+|\/+$/g, "") || ".";
-      const expectedFile = cleanOutput === "." ? "/index.html" : `/${cleanOutput}/index.html`;
-      const valid = files.some((file) => file.path === expectedFile || file.name === expectedFile.slice(1));
-      return {
-        valid,
-        expectedFile,
-        message: valid ? `${expectedFile} found. Deployment can be published.` : `Missing ${expectedFile}. Upload the compiled build output before publishing.`,
-      };
-    };
-
+  const value = useMemo(() => {
     return {
       projects,
       loading,
       wallet,
-      domainMappings: projects.flatMap((project) => (project.domain ? [project.domain] : [])),
-      generateSlug,
-      generateHash: generateRealHash,
-      generateRandomHash: makeRandomHash,
-      checkBuildOutput,
-      addProject: async (project) => {
+      createProject: async (projectData: Partial<Project>) => {
         try {
-          const check = checkBuildOutput(project.files, project.buildOutput);
-          const { data: { user } } = await supabase.auth.getUser();
-          if (!user) throw new Error("User not authenticated");
-
-            // Upload to "Shelby Nodes" (simulated by Supabase Storage)
-            const uploadPromises = project.files.map(async (f) => {
-              if (f.file) {
-                // Strip the build output prefix so the site is served from the root of the hash
-                const prefix = `/${project.buildOutput}/`;
-                const cleanPath = f.path.startsWith(prefix) ? f.path.slice(prefix.length - 1) : f.path;
-                const filePath = `${project.hash}${cleanPath}`;
-                
-                await supabase.storage.from("shelby_nodes").upload(filePath, f.file, {
-                  upsert: true,
-                  contentType: f.type,
-                });
-              }
-            });
-            await Promise.all(uploadPromises);
-
-            const { data: newProject, error: projectError } = await supabase
-              .from("shelby_projects")
-              .insert({
-              name: project.name,
-              slug: project.slug,
-              description: project.description,
-              framework: project.framework,
-              build_output: project.buildOutput,
-              content_hash: project.hash,
-              source: project.source,
-              status: check.valid ? "live" : "failed",
-              latest_version_url: versionUrl(project.slug, project.hash),
-              chain: project.chain,
-              wallet_address: project.walletAddress,
-              files: project.files as any,
-              size_bytes: project.size,
-              deployed_at: now(),
-              owner_id: user.id
+          const slug = projectData.name?.toLowerCase().replace(/[^a-z0-9]/g, "-") || "project";
+          const { data: { user: sbUser } } = await supabase.auth.getUser();
+          
+          const { data, error } = await supabase
+            .from("shelby_projects")
+            .insert({
+              name: projectData.name,
+              slug,
+              description: projectData.description,
+              user_id: sbUser?.id,
+              status: "processing",
+              source: projectData.source || "drag-drop",
+              chain: projectData.chain || "aptos",
+              wallet_address: projectData.walletAddress,
             })
             .select()
             .single();
 
-          if (projectError) throw projectError;
+          if (error) throw error;
+          
+          const newProject: Project = {
+            ...projectData,
+            id: data.id,
+            slug: data.slug,
+            status: "processing",
+            deployments: [],
+            files: [],
+            hash: "",
+            deployedAt: null,
+            size: 0,
+            chain: data.chain as Chain,
+          } as Project;
 
-          const { error: deploymentError } = await supabase
-            .from("shelby_deployments")
-            .insert({
-              project_id: newProject.id,
-              status: check.valid ? "succeeded" : "failed",
-              trigger: "manual",
-              version_url: newProject.latest_version_url,
-              content_hash: newProject.content_hash,
-              message: check.valid ? "Build output check passed and the deployment is live." : check.message,
-            });
-
-          if (deploymentError) throw deploymentError;
-
-          await fetchProjects();
+          setProjects(prev => [newProject, ...prev]);
           toast.success("Project created successfully");
-          return projects.find(p => p.id === newProject.id) || null;
+          return newProject;
         } catch (error: any) {
-          console.error("Error adding project:", error);
-          toast.error(`Failed to create project: ${error.message}`);
+          console.error("Error creating project:", error);
+          toast.error("Failed to create project");
           return null;
         }
       },
-      updateProject: async (slug, patch, trigger = "settings") => {
+      deployProject: async (projectId: string, files: FileEntry[], message?: string) => {
         try {
-          const project = projects.find(p => p.slug === slug);
-          if (!project) throw new Error("Project not found");
+          toast.info("Starting deployment...");
+          const hash = await generateRealHash(files);
+          const project = projects.find(p => p.id === projectId);
+          if (!project) return false;
 
-          const output = patch.buildOutput ?? project.buildOutput;
-          const files = patch.files ?? project.files;
-          const nextHash = trigger === "hash" && patch.hash ? patch.hash : await generateRealHash(files);
-          const check = checkBuildOutput(files, output);
+          const vUrl = versionUrl(project.slug, hash);
+          const totalSize = files.reduce((sum, f) => sum + f.size, 0);
 
-          const { error: projectError } = await supabase
+          const { data, error } = await supabase
+            .from("shelby_deployments")
+            .insert({
+              project_id: projectId,
+              content_hash: hash,
+              version_url: vUrl,
+              status: "succeeded",
+              trigger: "manual",
+              message: message || "Manual deployment",
+            })
+            .select()
+            .single();
+
+          if (error) throw error;
+
+          await supabase
             .from("shelby_projects")
             .update({
-              ...patch,
-              content_hash: nextHash,
-              latest_version_url: versionUrl(slug, nextHash),
-              status: check.valid ? "processing" : "failed",
-            } as any)
-            .eq("id", project.id);
-
-          if (projectError) throw projectError;
-
-          await supabase.from("shelby_deployments").insert({
-            project_id: project.id,
-            status: "queued",
-            trigger,
-            version_url: versionUrl(slug, nextHash),
-            content_hash: nextHash,
-            message: trigger === "github-push" ? "Push received from ShelbyHost GitHub Action." : "Project settings changed. Automatic redeploy queued.",
-          });
+              content_hash: hash,
+              latest_version_url: vUrl,
+              deployed_at: now(),
+              size_bytes: totalSize,
+              status: "live",
+            })
+            .eq("id", projectId);
 
           await fetchProjects();
-
-          // Simulate processing time for better UX
-          setTimeout(async () => {
-            await supabase.from("shelby_projects").update({
-              status: check.valid ? "live" : "failed",
-              deployed_at: check.valid ? now() : project.deployedAt,
-            }).eq("id", project.id);
-
-            await supabase.from("shelby_deployments").insert({
-              project_id: project.id,
-              status: check.valid ? "succeeded" : "failed",
-              trigger,
-              version_url: versionUrl(slug, nextHash),
-              content_hash: nextHash,
-              message: check.valid ? "Redeploy completed and latest version URL updated." : check.message,
-            });
-
-            await fetchProjects();
-          }, 1400);
-
+          toast.success("Deployment successful!");
+          return true;
         } catch (error: any) {
-          console.error("Error updating project:", error);
-          toast.error(`Update failed: ${error.message}`);
+          console.error("Deployment error:", error);
+          toast.error("Deployment failed");
+          return false;
         }
       },
-      deleteProject: async (slug) => {
+      deleteProject: async (projectId: string) => {
         try {
-          const project = projects.find(p => p.slug === slug);
-          if (!project) throw new Error("Project not found");
-
           const { error } = await supabase
             .from("shelby_projects")
             .delete()
-            .eq("id", project.id);
+            .eq("id", projectId);
 
           if (error) throw error;
-
-          setProjects(current => current.filter(p => p.slug !== slug));
+          setProjects(prev => prev.filter(p => p.id !== projectId));
           toast.success("Project deleted");
+          return true;
         } catch (error: any) {
-          console.error("Error deleting project:", error);
+          console.error("Delete error:", error);
           toast.error("Failed to delete project");
+          return false;
         }
       },
-      registerDomain: async (slug, domain) => {
+      connectGithub: async (slug: string, githubData: Project["github"]) => {
         try {
           const project = projects.find(p => p.slug === slug);
-          if (!project) throw new Error("Project not found");
-
-          const normalized = domain.toLowerCase().trim().replace(/^https?:\/\//, "").replace(/\/$/, "");
-          
-          const { error } = await supabase
-            .from("shelby_domain_mappings")
-            .upsert({
-              project_id: project.id,
-              domain: normalized,
-              slug: project.slug,
-              content_hash: project.hash,
-              target: TARGET_HOST,
-              status: "verified",
-              kv_key: `host:${normalized}`
-            }, { onConflict: "domain" });
-
-          if (error) throw error;
-
-          await fetchProjects();
-          toast.success("Domain registered");
-        } catch (error: any) {
-          console.error("Error registering domain:", error);
-          toast.error("Domain registration failed");
-        }
-      },
-      connectGithub: async (slug, connection) => {
-        try {
-          const project = projects.find(p => p.slug === slug);
-          if (!project) throw new Error("Project not found");
+          if (!project) return false;
 
           const { error } = await supabase
             .from("shelby_github_connections")
-            .upsert({
+            .insert({
               project_id: project.id,
-              account: connection.account,
-              repository: connection.repository,
-              branch: connection.branch,
-              workflow_file: ".github/workflows/shelbyhost-deploy.yml",
-              webhook_status: "active",
-              last_push_at: now()
-            }, { onConflict: "project_id,repository,branch" });
+              account: githubData?.account,
+              repository: githubData?.repository,
+              branch: githubData?.branch,
+              status: "active",
+            });
 
           if (error) throw error;
-
-          await supabase.from("shelby_projects").update({ source: "github" }).eq("id", project.id);
           await fetchProjects();
-          toast.success("GitHub repository connected");
+          toast.success("GitHub connected successfully");
+          return true;
         } catch (error: any) {
-          console.error("Error connecting GitHub:", error);
-          toast.error("GitHub connection failed");
+          console.error("GitHub connection error:", error);
+          toast.error("Failed to connect GitHub");
+          return false;
         }
       },
-      triggerGithubDeploy: async (slug) => {
-        const project = projects.find(p => p.slug === slug);
-        if (project) {
-          // This would normally trigger a GH Action, here we just queue a redeploy
-          const patch: Partial<Project> = { status: "processing" };
-          const trigger: DeploymentTrigger = "github-push";
-          
-          const nextHash = makeRandomHash();
-          await supabase.from("shelby_deployments").insert({
-            project_id: project.id,
-            status: "queued",
-            trigger,
-            version_url: versionUrl(slug, nextHash),
-            content_hash: nextHash,
-            message: "Manual trigger of GitHub deployment simulation.",
-          });
-          
-          await fetchProjects();
-          
-          setTimeout(async () => {
-            await supabase.from("shelby_projects").update({
-              status: "live",
-              content_hash: nextHash,
-              latest_version_url: versionUrl(slug, nextHash),
-              deployed_at: now(),
-            }).eq("id", project.id);
-            
-            await fetchProjects();
-          }, 1400);
-        }
-      },
-      connectWallet: async (chain = "aptos") => {
+      connectWallet: async (chain: Chain, address: string, provider: string) => {
         try {
-          const { data: { user } } = await supabase.auth.getUser();
-          if (!user) throw new Error("Auth required");
-
-          const address = chain === "aptos" ? "0x7e5b1a2c9f4d88a0" : "shelby1q9x7k2m4n8";
-          const provider = chain === "aptos" ? "Petra" : "Shelby Wallet";
-
+          const { data: { user: sbUser } } = await supabase.auth.getUser();
           const { data, error } = await supabase
             .from("shelby_wallet_connections")
             .upsert({
-              owner_id: user.id,
+              user_id: sbUser?.id,
               chain,
-              wallet_provider: provider,
               address,
+              wallet_provider: provider,
               status: "connected"
             }, { onConflict: "chain,address" })
             .select()
@@ -520,52 +369,41 @@ export function ShelbyHostProvider({ children }: { children: React.ReactNode }) 
           return null;
         }
       },
+      linkGithub: async () => {
+        try {
+          await privyLinkGithub();
+        } catch (error) {
+          console.error("Privy GitHub link error:", error);
+          toast.error("Failed to link GitHub account");
+        }
+      },
       fetchGithubRepos: async () => {
         try {
-          const { data: { session } } = await supabase.auth.getSession();
-          if (!session?.provider_token) {
-            // If no token, we can try to sign in with github
-            const { error } = await supabase.auth.signInWithOAuth({
-              provider: 'github',
-              options: {
-                scopes: 'repo',
-                redirectTo: window.location.href
-              }
-            });
-            if (error) throw error;
+          // Check if user has a linked GitHub account in Privy
+          const githubAccount = user?.linkedAccounts.find(acc => acc.type === 'github_oauth');
+          
+          if (!githubAccount) {
+            toast.info("Please link your GitHub account first.");
             return [];
           }
 
-          const response = await fetch("https://api.github.com/user/repos?sort=updated&per_page=100", {
-            headers: {
-              Authorization: `Bearer ${session.provider_token}`,
-            },
-          });
-
-          if (!response.ok) {
-            if (response.status === 401) {
-              // Token expired or invalid, re-auth
-               await supabase.auth.signInWithOAuth({
-                provider: 'github',
-                options: {
-                  scopes: 'repo',
-                  redirectTo: window.location.href
-                }
-              });
-              return [];
-            }
-            throw new Error("Failed to fetch GitHub repositories");
-          }
+          // In Privy, to get the actual API token for GitHub, we usually need to use the 
+          // getAccessToken or use specific OAuth flows. 
+          // For now, if they are linked, we'll suggest using the manual import or 
+          // redirect to the linking flow.
           
-          return await response.json();
+          // Note: If you want to fetch repos, you need a GitHub token. 
+          // Privy provides this if configured correctly in the dashboard.
+          
+          toast.error("GitHub repository fetching is being migrated to Privy. Please use manual import for now.");
+          return [];
         } catch (error: any) {
           console.error("GitHub fetch error:", error);
-          toast.error("Could not fetch repositories. Ensure you are connected to GitHub.");
           return [];
         }
       },
     };
-  }, [projects, loading, wallet]);
+  }, [projects, loading, wallet, user, authenticated]);
 
   return <ShelbyHostContext.Provider value={value}>{children}</ShelbyHostContext.Provider>;
 }
