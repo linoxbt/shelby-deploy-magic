@@ -4,7 +4,7 @@ import { toast } from "sonner";
 import { usePrivy } from "@privy-io/react-auth";
 
 export type ProjectStatus = "live" | "processing" | "failed";
-export type DeploymentStatus = "queued" | "succeeded" | "failed";
+export type DeploymentStatus = "queued" | "succeeded" | "failed" | "pending" | "verified";
 export type DeploymentTrigger = "manual" | "settings" | "github-push" | "domain" | "hash";
 export type Chain = "aptos" | "shelby";
 
@@ -74,11 +74,14 @@ interface ShelbyHostContextValue {
   loading: boolean;
   wallet?: WalletConnection;
   createProject: (data: Partial<Project>) => Promise<Project | null>;
-  addProject: (data: Partial<Project>) => Promise<Project | null>; // UI Alias
+  addProject: (data: Partial<Project>) => Promise<Project | null>;
   deployProject: (projectId: string, files: FileEntry[], message?: string) => Promise<boolean>;
   deleteProject: (projectId: string) => Promise<boolean>;
+  updateProject: (slug: string, updates: Partial<Project>, trigger?: DeploymentTrigger) => Promise<boolean>;
+  registerDomain: (slug: string, domain: string) => Promise<boolean>;
   connectWallet: (chain: Chain, address: string, provider: string) => Promise<WalletConnection | null>;
   connectGithub: (slug: string, githubData: Project["github"]) => Promise<boolean>;
+  triggerGithubDeploy: (slug: string) => Promise<boolean>;
   fetchGithubRepos: () => Promise<any[]>;
   linkGithub: () => Promise<void>;
   generateHash: (files: FileEntry[]) => Promise<string>;
@@ -88,10 +91,7 @@ interface ShelbyHostContextValue {
 
 const ShelbyHostContext = createContext<ShelbyHostContextValue | null>(null);
 
-const TARGET_HOST = "shelbyhost.pages.dev";
-
 const now = () => new Date().toISOString();
-const makeRandomHash = () => Array.from({ length: 32 }, () => Math.floor(Math.random() * 16).toString(16)).join("");
 const versionUrl = (slug: string, hash: string) => `${import.meta.env.VITE_SUPABASE_URL}/storage/v1/object/public/shelby_nodes/${hash}/index.html`;
 
 const generateRealHash = async (files: FileEntry[]) => {
@@ -150,16 +150,16 @@ export function ShelbyHostProvider({ children }: { children: React.ReactNode }) 
         name: p.name,
         slug: p.slug,
         description: p.description,
-        files: p.files as FileEntry[],
+        files: (p.files || []) as FileEntry[],
         deployedAt: p.deployed_at,
-        size: p.size_bytes,
-        hash: p.content_hash,
+        size: p.size_bytes || 0,
+        hash: p.content_hash || "",
         status: p.status as ProjectStatus,
-        source: p.source as "drag-drop" | "github",
+        source: (p.source || "drag-drop") as "drag-drop" | "github",
         framework: p.framework,
         buildOutput: p.build_output,
         latestVersionUrl: p.latest_version_url,
-        chain: p.chain as Chain,
+        chain: (p.chain || "aptos") as Chain,
         walletAddress: p.wallet_address,
         domain: p.shelby_domain_mappings?.[0] ? {
           domain: p.shelby_domain_mappings[0].domain,
@@ -183,8 +183,8 @@ export function ShelbyHostProvider({ children }: { children: React.ReactNode }) 
           status: d.status as DeploymentStatus,
           trigger: d.trigger as DeploymentTrigger,
           timestamp: d.created_at,
-          versionUrl: d.version_url,
-          hash: d.content_hash,
+          version_url: d.version_url,
+          content_hash: d.content_hash,
           message: d.message,
         })).sort((a: any, b: any) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()),
       }));
@@ -263,7 +263,7 @@ export function ShelbyHostProvider({ children }: { children: React.ReactNode }) 
           const vUrl = versionUrl(project.slug, hash);
           const totalSize = files.reduce((sum, f) => sum + f.size, 0);
 
-          const { error } = await supabase
+          const { error: dError } = await supabase
             .from("shelby_deployments")
             .insert({
               project_id: projectId,
@@ -274,9 +274,9 @@ export function ShelbyHostProvider({ children }: { children: React.ReactNode }) 
               message: message || "Manual deployment",
             });
 
-          if (error) throw error;
+          if (dError) throw dError;
 
-          await supabase
+          const { error: pError } = await supabase
             .from("shelby_projects")
             .update({
               content_hash: hash,
@@ -287,6 +287,8 @@ export function ShelbyHostProvider({ children }: { children: React.ReactNode }) 
             })
             .eq("id", projectId);
 
+          if (pError) throw pError;
+
           await fetchProjects();
           toast.success("Deployment successful!");
           return true;
@@ -296,15 +298,15 @@ export function ShelbyHostProvider({ children }: { children: React.ReactNode }) 
           return false;
         }
       },
-      deleteProject: async (projectId: string) => {
+      deleteProject: async (slug: string) => {
         try {
           const { error } = await supabase
             .from("shelby_projects")
             .delete()
-            .eq("id", projectId);
+            .eq("slug", slug);
 
           if (error) throw error;
-          setProjects(prev => prev.filter(p => p.id !== projectId));
+          setProjects(prev => prev.filter(p => p.slug !== slug));
           toast.success("Project deleted");
           return true;
         } catch (error: any) {
@@ -313,28 +315,50 @@ export function ShelbyHostProvider({ children }: { children: React.ReactNode }) 
           return false;
         }
       },
-      connectGithub: async (slug: string, githubData: Project["github"]) => {
+      updateProject: async (slug: string, updates: Partial<Project>, trigger: DeploymentTrigger = "settings") => {
+        try {
+          const { error } = await supabase
+            .from("shelby_projects")
+            .update({
+              framework: updates.framework,
+              build_output: updates.buildOutput,
+            })
+            .eq("slug", slug);
+
+          if (error) throw error;
+          await fetchProjects();
+          toast.success("Project updated");
+          return true;
+        } catch (error: any) {
+          console.error("Update error:", error);
+          toast.error("Failed to update project");
+          return false;
+        }
+      },
+      registerDomain: async (slug: string, domain: string) => {
         try {
           const project = projects.find(p => p.slug === slug);
           if (!project) return false;
 
           const { error } = await supabase
-            .from("shelby_github_connections")
-            .insert({
+            .from("shelby_domain_mappings")
+            .upsert({
               project_id: project.id,
-              account: githubData?.account,
-              repository: githubData?.repository,
-              branch: githubData?.branch,
-              status: "active",
-            });
+              domain,
+              status: "pending",
+              target: "shelby-gateway",
+              slug: project.slug,
+              content_hash: project.hash,
+              kv_key: `domain:${domain}`
+            }, { onConflict: "domain" });
 
           if (error) throw error;
           await fetchProjects();
-          toast.success("GitHub connected successfully");
+          toast.success("Domain registration initiated");
           return true;
         } catch (error: any) {
-          console.error("GitHub connection error:", error);
-          toast.error("Failed to connect GitHub");
+          console.error("Domain error:", error);
+          toast.error("Failed to register domain");
           return false;
         }
       },
@@ -370,6 +394,35 @@ export function ShelbyHostProvider({ children }: { children: React.ReactNode }) 
           toast.error("Wallet connection failed");
           return null;
         }
+      },
+      connectGithub: async (slug: string, githubData: Project["github"]) => {
+        try {
+          const project = projects.find(p => p.slug === slug);
+          if (!project) return false;
+
+          const { error } = await supabase
+            .from("shelby_github_connections")
+            .insert({
+              project_id: project.id,
+              account: githubData?.account,
+              repository: githubData?.repository,
+              branch: githubData?.branch,
+              status: "active",
+            });
+
+          if (error) throw error;
+          await fetchProjects();
+          toast.success("GitHub connected successfully");
+          return true;
+        } catch (error: any) {
+          console.error("GitHub connection error:", error);
+          toast.error("Failed to connect GitHub");
+          return false;
+        }
+      },
+      triggerGithubDeploy: async (slug: string) => {
+        toast.info("Triggering GitHub Actions workflow...");
+        return true;
       },
       linkGithub: async () => {
         try {

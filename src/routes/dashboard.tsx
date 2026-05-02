@@ -73,7 +73,11 @@ function Dashboard() {
         slug: project.slug,
       })),
     )
-    .sort((a, b) => +new Date(b.timestamp) - +new Date(a.timestamp))
+    .sort((a, b) => {
+      const timeA = a.timestamp ? new Date(a.timestamp).getTime() : 0;
+      const timeB = b.timestamp ? new Date(b.timestamp).getTime() : 0;
+      return timeB - timeA;
+    })
     .slice(0, 6);
   const firstProject = projects[0];
 
