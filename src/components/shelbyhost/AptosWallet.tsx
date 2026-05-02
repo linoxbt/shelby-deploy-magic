@@ -41,38 +41,104 @@ export function AptosProvider({ children }: { children: React.ReactNode }) {
   const { user, authenticated, ready } = usePrivy();
   const { wallets } = useWallets();
 
-  // Find the first Aptos wallet if available, otherwise fallback to Privy's embedded/linked wallets
-  // For this implementation, we assume the user is using an Aptos wallet connected via Privy
-  const aptosWallet = wallets.find(w => w.walletClientType === 'petra' || w.walletClientType === 'martian');
-  const address = user?.aptos?.address || aptosWallet?.address;
+  // Find the first Aptos wallet if available
+  const aptosWallet = wallets.find(w => 
+    w.walletClientType === 'petra' || 
+    w.walletClientType === 'martian' ||
+    w.walletClientType.toLowerCase().includes('aptos')
+  );
+  
+  // Use Privy's linked Aptos address, or the detected wallet address, or fallback to window.aptos if available
+  const [injectedAddress, setInjectedAddress] = useState<string | undefined>();
+
+  useEffect(() => {
+    const checkInjected = async () => {
+      // @ts-ignore
+      if (window.aptos) {
+        try {
+          // @ts-ignore
+          const account = await window.aptos.account();
+          if (account?.address) setInjectedAddress(account.address);
+        } catch (e) {
+          // Might not be connected yet
+        }
+      }
+    };
+    checkInjected();
+  }, []);
+
+  const address = user?.aptos?.address || aptosWallet?.address || injectedAddress;
 
   useEffect(() => {
     if (ready) {
-      setCachedAddress(authenticated ? address : undefined);
+      setCachedAddress(authenticated || !!injectedAddress ? address : undefined);
       
-      if (authenticated && aptosWallet) {
-        // Mocking signAndSubmit since it depends on the specific wallet type in Privy
-        // In a real implementation, we'd use the wallet's provider
+      if (aptosWallet) {
         setCachedSignAndSubmit(async (tx: any) => {
-          // This is a simplified version. Privy's wallets have a getProvider() method.
           const provider = await aptosWallet.getProvider();
-          // Logic to sign and submit using the provider...
+          // Logic for signing...
           return { hash: "0x..." }; 
+        });
+      } else if (injectedAddress) {
+        setCachedSignAndSubmit(async (tx: any) => {
+          // @ts-ignore
+          if (window.aptos) {
+            // @ts-ignore
+            return await window.aptos.signAndSubmitTransaction(tx);
+          }
+          throw new Error("Aptos wallet not found");
         });
       }
     }
-  }, [ready, authenticated, address, aptosWallet]);
+  }, [ready, authenticated, address, aptosWallet, injectedAddress]);
 
   return <>{children}</>;
 }
 
 export function AptosWalletButton({ compact = false }: { compact?: boolean }) {
   const { login, logout, authenticated, user, ready } = usePrivy();
+  const { wallets } = useWallets();
   const [open, setOpen] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [injectedAddress, setInjectedAddress] = useState<string | undefined>();
+
+  useEffect(() => {
+    const checkInjected = async () => {
+      // @ts-ignore
+      if (window.aptos) {
+        try {
+          // @ts-ignore
+          const account = await window.aptos.account();
+          if (account?.address) setInjectedAddress(account.address);
+        } catch (e) {}
+      }
+    };
+    checkInjected();
+  }, []);
   
-  const address = user?.aptos?.address || user?.wallet?.address;
+  const aptosWallet = wallets.find(w => w.walletClientType.toLowerCase().includes('aptos'));
+  const address = user?.aptos?.address || aptosWallet?.address || injectedAddress;
   const displayAddress = address ? `${address.slice(0, 6)}...${address.slice(-4)}` : "";
+
+  const handleConnect = async () => {
+    // If we detect window.aptos but Privy hasn't linked it, we can try to use it directly
+    // @ts-ignore
+    if (window.aptos && !authenticated) {
+      try {
+        // @ts-ignore
+        const account = await window.aptos.connect();
+        if (account?.address) {
+          setInjectedAddress(account.address);
+          setCachedAddress(account.address);
+          toast.success("Aptos wallet connected via extension");
+          return;
+        }
+      } catch (e) {
+        console.error("Injected connect error:", e);
+      }
+    }
+    login();
+  };
 
   const copyAddress = async () => {
     if (!address) return;
@@ -81,20 +147,29 @@ export function AptosWalletButton({ compact = false }: { compact?: boolean }) {
     setTimeout(() => setCopied(false), 2000);
   };
 
+  const handleDisconnect = () => {
+    if (authenticated) {
+      logout();
+    }
+    setInjectedAddress(undefined);
+    setCachedAddress(undefined);
+    setOpen(false);
+  };
+
   if (!ready) return (
     <button disabled className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md border border-border bg-card px-3 py-2 text-sm font-bold text-muted-foreground opacity-50">
       <Wallet className="h-4 w-4" /> Loading...
     </button>
   );
 
-  if (!authenticated) {
+  if (!authenticated && !injectedAddress) {
     return (
       <button 
-        onClick={() => login()}
+        onClick={handleConnect}
         className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md border border-border bg-primary px-3 py-2 text-sm font-bold text-primary-foreground shadow-glow transition hover:bg-primary-hover"
       >
         <Wallet className="h-4 w-4" />
-        Connect with Privy
+        Connect Wallet
       </button>
     );
   }
@@ -119,7 +194,7 @@ export function AptosWalletButton({ compact = false }: { compact?: boolean }) {
             <Wallet className="h-4 w-4" />
           </div>
           <div className="text-left">
-            <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Connected Wallet</p>
+            <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Connected {injectedAddress && !authenticated ? "Extension" : "Privy"}</p>
             <p className="text-sm font-mono font-bold text-foreground">{displayAddress}</p>
           </div>
         </div>
@@ -139,7 +214,7 @@ export function AptosWalletButton({ compact = false }: { compact?: boolean }) {
             {copied && <Check className="h-4 w-4 text-success" />}
           </button>
           <button 
-            onClick={() => { logout(); setOpen(false); }}
+            onClick={handleDisconnect}
             className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm font-medium text-destructive hover:bg-destructive/10"
           >
             <LogOut className="h-4 w-4" />

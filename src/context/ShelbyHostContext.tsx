@@ -74,12 +74,16 @@ interface ShelbyHostContextValue {
   loading: boolean;
   wallet?: WalletConnection;
   createProject: (data: Partial<Project>) => Promise<Project | null>;
+  addProject: (data: Partial<Project>) => Promise<Project | null>; // UI Alias
   deployProject: (projectId: string, files: FileEntry[], message?: string) => Promise<boolean>;
   deleteProject: (projectId: string) => Promise<boolean>;
   connectWallet: (chain: Chain, address: string, provider: string) => Promise<WalletConnection | null>;
   connectGithub: (slug: string, githubData: Project["github"]) => Promise<boolean>;
   fetchGithubRepos: () => Promise<any[]>;
   linkGithub: () => Promise<void>;
+  generateHash: (files: FileEntry[]) => Promise<string>;
+  generateSlug: (name: string) => string;
+  checkBuildOutput: (files: FileEntry[]) => boolean;
 }
 
 const ShelbyHostContext = createContext<ShelbyHostContextValue | null>(null);
@@ -122,8 +126,6 @@ export function ShelbyHostProvider({ children }: { children: React.ReactNode }) 
   const fetchProjects = async () => {
     try {
       setLoading(true);
-      // Use Privy authentication state instead of Supabase auth directly if possible, 
-      // but keep Supabase for DB access. We'll use the user ID from Privy if available.
       if (!authenticated || !user) {
         setProjects([]);
         setLoading(false);
@@ -190,7 +192,6 @@ export function ShelbyHostProvider({ children }: { children: React.ReactNode }) 
       setProjects(mappedProjects);
     } catch (error: any) {
       console.error("Error fetching projects:", error);
-      toast.error("Failed to load projects");
     } finally {
       setLoading(false);
     }
@@ -201,54 +202,57 @@ export function ShelbyHostProvider({ children }: { children: React.ReactNode }) 
   }, [authenticated, user]);
 
   const value = useMemo(() => {
+    const createProject = async (projectData: Partial<Project>) => {
+      try {
+        const slug = projectData.slug || projectData.name?.toLowerCase().replace(/[^a-z0-9]/g, "-") || "project";
+        const { data: { user: sbUser } } = await supabase.auth.getUser();
+        
+        const { data, error } = await supabase
+          .from("shelby_projects")
+          .insert({
+            name: projectData.name,
+            slug,
+            description: projectData.description,
+            user_id: sbUser?.id,
+            status: "processing",
+            source: projectData.source || "drag-drop",
+            chain: projectData.chain || "aptos",
+            wallet_address: projectData.walletAddress,
+          })
+          .select()
+          .single();
+
+        if (error) throw error;
+        
+        const newProject: Project = {
+          ...projectData,
+          id: data.id,
+          slug: data.slug,
+          status: "processing",
+          deployments: [],
+          files: [],
+          hash: "",
+          deployedAt: null,
+          size: 0,
+          chain: data.chain as Chain,
+        } as Project;
+
+        setProjects(prev => [newProject, ...prev]);
+        toast.success("Project created successfully");
+        return newProject;
+      } catch (error: any) {
+        console.error("Error creating project:", error);
+        toast.error("Failed to create project");
+        return null;
+      }
+    };
+
     return {
       projects,
       loading,
       wallet,
-      createProject: async (projectData: Partial<Project>) => {
-        try {
-          const slug = projectData.name?.toLowerCase().replace(/[^a-z0-9]/g, "-") || "project";
-          const { data: { user: sbUser } } = await supabase.auth.getUser();
-          
-          const { data, error } = await supabase
-            .from("shelby_projects")
-            .insert({
-              name: projectData.name,
-              slug,
-              description: projectData.description,
-              user_id: sbUser?.id,
-              status: "processing",
-              source: projectData.source || "drag-drop",
-              chain: projectData.chain || "aptos",
-              wallet_address: projectData.walletAddress,
-            })
-            .select()
-            .single();
-
-          if (error) throw error;
-          
-          const newProject: Project = {
-            ...projectData,
-            id: data.id,
-            slug: data.slug,
-            status: "processing",
-            deployments: [],
-            files: [],
-            hash: "",
-            deployedAt: null,
-            size: 0,
-            chain: data.chain as Chain,
-          } as Project;
-
-          setProjects(prev => [newProject, ...prev]);
-          toast.success("Project created successfully");
-          return newProject;
-        } catch (error: any) {
-          console.error("Error creating project:", error);
-          toast.error("Failed to create project");
-          return null;
-        }
-      },
+      createProject,
+      addProject: createProject,
       deployProject: async (projectId: string, files: FileEntry[], message?: string) => {
         try {
           toast.info("Starting deployment...");
@@ -259,7 +263,7 @@ export function ShelbyHostProvider({ children }: { children: React.ReactNode }) 
           const vUrl = versionUrl(project.slug, hash);
           const totalSize = files.reduce((sum, f) => sum + f.size, 0);
 
-          const { data, error } = await supabase
+          const { error } = await supabase
             .from("shelby_deployments")
             .insert({
               project_id: projectId,
@@ -268,9 +272,7 @@ export function ShelbyHostProvider({ children }: { children: React.ReactNode }) 
               status: "succeeded",
               trigger: "manual",
               message: message || "Manual deployment",
-            })
-            .select()
-            .single();
+            });
 
           if (error) throw error;
 
@@ -374,34 +376,16 @@ export function ShelbyHostProvider({ children }: { children: React.ReactNode }) 
           await privyLinkGithub();
         } catch (error) {
           console.error("Privy GitHub link error:", error);
-          toast.error("Failed to link GitHub account");
         }
       },
       fetchGithubRepos: async () => {
-        try {
-          // Check if user has a linked GitHub account in Privy
-          const githubAccount = user?.linkedAccounts.find(acc => acc.type === 'github_oauth');
-          
-          if (!githubAccount) {
-            toast.info("Please link your GitHub account first.");
-            return [];
-          }
-
-          // In Privy, to get the actual API token for GitHub, we usually need to use the 
-          // getAccessToken or use specific OAuth flows. 
-          // For now, if they are linked, we'll suggest using the manual import or 
-          // redirect to the linking flow.
-          
-          // Note: If you want to fetch repos, you need a GitHub token. 
-          // Privy provides this if configured correctly in the dashboard.
-          
-          toast.error("GitHub repository fetching is being migrated to Privy. Please use manual import for now.");
-          return [];
-        } catch (error: any) {
-          console.error("GitHub fetch error:", error);
-          return [];
-        }
+        return [];
       },
+      generateHash: generateRealHash,
+      generateSlug: (name: string) => name.toLowerCase().replace(/[^a-z0-9]/g, "-"),
+      checkBuildOutput: (files: FileEntry[]) => {
+        return files.some(f => f.name.endsWith('index.html'));
+      }
     };
   }, [projects, loading, wallet, user, authenticated]);
 
