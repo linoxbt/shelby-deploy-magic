@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import { Aptos, AptosConfig, Network } from "@aptos-labs/ts-sdk";
 import { AppShell, formatBytes } from "../components/shelbyhost/AppShell";
-import { useShelbyHost, type FileEntry, type Project } from "../context/ShelbyHostContext";
+import { useShelbyHost, type FileEntry, type Project, type BuildCheckResult } from "../context/ShelbyHostContext";
 import { AptosWalletButton, useAptosAddress, getAptosSignAndSubmit } from "../components/shelbyhost/AptosWallet";
 
 export const Route = createFileRoute("/deploy")({
@@ -16,7 +16,7 @@ const deploymentSteps = ["Checking build output...", "Uploading to Shelby nodes.
 const REGISTRY_ADDRESS = "0xc36c2abd4d6a6fd5d3c5823588d15c9ac5ae90a2357c3ce3083a98ce2184e4af";
 
 function Deploy() {
-  const { addProject, generateHash, generateSlug, checkBuildOutput, wallet, fetchGithubRepos } = useShelbyHost();
+  const { addProject, generateHash, generateSlug, checkBuildOutput, wallet, fetchGithubRepos, uploadProgress } = useShelbyHost();
   const aptosAddress = useAptosAddress();
   const [name, setName] = useState("my-dapp");
   const [description, setDescription] = useState("Static frontend deployed through ShelbyHost.");
@@ -127,7 +127,7 @@ function Deploy() {
 
   const copyUrl = async () => {
     if (!deployed) return;
-    await navigator.clipboard?.writeText(deployed.latestVersionUrl);
+    await navigator.clipboard?.writeText(deployed.latestVersionUrl ?? "");
     setCopied(true);
     window.setTimeout(() => setCopied(false), 2000);
   };
@@ -225,6 +225,14 @@ function Deploy() {
           </div>
           <div className="mt-6 h-2 overflow-hidden rounded-full bg-secondary"><div className="h-full bg-primary transition-all duration-700" style={{ width: `${deployed ? 100 : Math.min((activeStep + 1) * 20, 80)}%` }} /></div>
 
+          {uploadProgress !== null && (
+            <div className="mt-4 rounded-md border border-primary/30 bg-primary/5 p-4">
+              <p className="text-sm font-bold text-foreground">Uploading files… {uploadProgress}%</p>
+              <div className="mt-2 h-2 overflow-hidden rounded-full bg-secondary">
+                <div className="h-full bg-primary transition-all duration-300" style={{ width: `${uploadProgress}%` }} />
+              </div>
+            </div>
+          )}
           {deployed && <div className="mt-6 rounded-lg border border-primary/50 bg-primary/10 p-5 shadow-glow"><h3 className="text-xl font-extrabold text-foreground">Deployment ready.</h3><div className="mt-4 flex items-center gap-2 rounded-md border border-border bg-background p-3"><span className="min-w-0 flex-1 truncate font-mono text-sm text-primary">{deployed.latestVersionUrl}</span><button onClick={copyUrl} className="text-primary"><Copy className="h-4 w-4" /></button></div><p className="mt-3 font-mono text-xs text-muted-foreground">Aptos hash: {deployed.hash.slice(0, 8)}...{deployed.hash.slice(-4)}</p><div className="mt-5 flex gap-3"><a href={deployed.latestVersionUrl} className="rounded-md bg-primary px-4 py-2 text-sm font-bold text-primary-foreground">Visit Site</a><Link to="/dashboard" className="rounded-md border border-border px-4 py-2 text-sm font-bold text-foreground">View Dashboard</Link></div>{copied && <p className="mt-3 text-sm font-semibold text-success">✓ Copied!</p>}</div>}
         </aside>
       </div>

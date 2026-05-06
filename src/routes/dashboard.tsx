@@ -136,12 +136,12 @@ function Dashboard() {
             </h1>
           </div>
           <div className="flex flex-col gap-2 sm:flex-row">
-            <button
-              onClick={() => connectWallet("aptos")}
+            <Link
+              to="/deploy"
               className="inline-flex items-center justify-center gap-2 rounded-md border border-border px-4 py-2.5 text-sm font-bold text-foreground transition hover:border-foreground"
             >
-              <Wallet className="h-4 w-4" /> {wallet ? "Aptos Connected" : "Connect Aptos"}
-            </button>
+              <Wallet className="h-4 w-4" /> {wallet ? "Aptos Connected" : "Connect Wallet"}
+            </Link>
             <Link
               to="/deploy"
               className="inline-flex items-center justify-center gap-2 rounded-md bg-primary px-4 py-2.5 text-sm font-bold text-primary-foreground transition hover:bg-primary-hover hover:shadow-glow"

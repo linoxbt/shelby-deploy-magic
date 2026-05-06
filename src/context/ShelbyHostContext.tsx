@@ -69,9 +69,15 @@ export interface WalletConnection {
   status: "connected" | "disconnected";
 }
 
+export interface BuildCheckResult {
+  valid: boolean;
+  message: string;
+}
+
 interface ShelbyHostContextValue {
   projects: Project[];
   loading: boolean;
+  uploadProgress: number | null;
   wallet?: WalletConnection;
   createProject: (data: Partial<Project>) => Promise<Project | null>;
   addProject: (data: Partial<Project>) => Promise<Project | null>;
@@ -86,13 +92,70 @@ interface ShelbyHostContextValue {
   linkGithub: () => Promise<void>;
   generateHash: (files: FileEntry[]) => Promise<string>;
   generateSlug: (name: string) => string;
-  checkBuildOutput: (files: FileEntry[]) => boolean;
+  checkBuildOutput: (files: FileEntry[], buildOutput?: string) => BuildCheckResult;
 }
 
 const ShelbyHostContext = createContext<ShelbyHostContextValue | null>(null);
 
 const now = () => new Date().toISOString();
-const versionUrl = (slug: string, hash: string) => `${import.meta.env.VITE_SUPABASE_URL}/storage/v1/object/public/shelby_nodes/${hash}/index.html`;
+const versionUrl = (hash: string) =>
+  `${import.meta.env.VITE_SUPABASE_URL}/storage/v1/object/public/shelby_nodes/${hash}/index.html`;
+
+const MIME_MAP: Record<string, string> = {
+  html: "text/html",
+  css: "text/css",
+  js: "application/javascript",
+  mjs: "application/javascript",
+  json: "application/json",
+  svg: "image/svg+xml",
+  png: "image/png",
+  jpg: "image/jpeg",
+  jpeg: "image/jpeg",
+  gif: "image/gif",
+  webp: "image/webp",
+  ico: "image/x-icon",
+  woff: "font/woff",
+  woff2: "font/woff2",
+  ttf: "font/ttf",
+  txt: "text/plain",
+  xml: "application/xml",
+};
+
+function getMimeType(filename: string): string {
+  const ext = filename.split(".").pop()?.toLowerCase() ?? "";
+  return MIME_MAP[ext] ?? "application/octet-stream";
+}
+
+async function uploadFilesToStorage(
+  hash: string,
+  files: FileEntry[],
+  onProgress?: (pct: number) => void
+): Promise<string> {
+  const realFiles = files.filter((f) => f.file);
+  let uploaded = 0;
+
+  for (const entry of realFiles) {
+    const storagePath = `${hash}${entry.path}`;
+    const contentType = entry.file!.type || getMimeType(entry.name);
+
+    const { error } = await supabase.storage
+      .from("shelby_nodes")
+      .upload(storagePath, entry.file!, {
+        contentType,
+        upsert: true,
+      });
+
+    if (error) {
+      console.error(`Upload failed for ${storagePath}:`, error);
+      throw new Error(`Failed to upload ${entry.name}: ${error.message}`);
+    }
+
+    uploaded++;
+    onProgress?.(Math.round((uploaded / realFiles.length) * 100));
+  }
+
+  return versionUrl(hash);
+}
 
 const generateRealHash = async (files: FileEntry[]) => {
   const sortedFiles = [...files].sort((a, b) => a.path.localeCompare(b.path));
@@ -120,6 +183,7 @@ const generateRealHash = async (files: FileEntry[]) => {
 export function ShelbyHostProvider({ children }: { children: React.ReactNode }) {
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
+  const [uploadProgress, setUploadProgress] = useState<number | null>(null);
   const [wallet, setWallet] = useState<WalletConnection | undefined>();
   const { user, authenticated, linkGithub: privyLinkGithub } = usePrivy();
 
@@ -204,45 +268,86 @@ export function ShelbyHostProvider({ children }: { children: React.ReactNode }) 
   const value = useMemo(() => {
     const createProject = async (projectData: Partial<Project>) => {
       try {
-        const slug = projectData.slug || projectData.name?.toLowerCase().replace(/[^a-z0-9]/g, "-") || "project";
-        const { data: { user: sbUser } } = await supabase.auth.getUser();
-        
+        const slug =
+          projectData.slug ||
+          projectData.name?.toLowerCase().replace(/[^a-z0-9]/g, "-") ||
+          "project";
+
+        const files = projectData.files ?? [];
+        const size = projectData.size ?? files.reduce((s, f) => s + f.size, 0);
+
+        // 1. Generate hash
+        const hash = projectData.hash || (await generateRealHash(files));
+
+        // 2. Upload real files to Supabase Storage
+        let latestVersionUrl = projectData.latestVersionUrl || "";
+        const realFiles = files.filter((f) => f.file);
+        if (realFiles.length > 0) {
+          toast.info("Uploading files to storage…");
+          setUploadProgress(0);
+          latestVersionUrl = await uploadFilesToStorage(hash, files, (pct) =>
+            setUploadProgress(pct)
+          );
+          setUploadProgress(null);
+        } else if (!latestVersionUrl) {
+          latestVersionUrl = versionUrl(hash);
+        }
+
+        // 3. Insert project row (owner_id set by DB via auth.uid())
         const { data, error } = await supabase
           .from("shelby_projects")
           .insert({
-            name: projectData.name,
+            name: projectData.name!,
             slug,
-            description: projectData.description,
-            user_id: sbUser?.id,
-            status: "processing",
-            source: projectData.source || "drag-drop",
-            chain: projectData.chain || "aptos",
-            wallet_address: projectData.walletAddress,
+            description: projectData.description ?? "",
+            status: "live",
+            source: (projectData.source || "drag-drop") as "drag-drop" | "github",
+            chain: (projectData.chain || "aptos") as "aptos" | "shelby",
+            wallet_address: projectData.walletAddress ?? null,
+            framework: projectData.framework ?? "vite",
+            build_output: projectData.buildOutput ?? "dist",
+            content_hash: hash,
+            latest_version_url: latestVersionUrl,
+            size_bytes: size,
+            files: files.map((f) => ({ name: f.name, size: f.size, type: f.type, path: f.path })) as any,
+            deployed_at: now(),
           })
           .select()
           .single();
 
         if (error) throw error;
-        
+
+        // 4. Record first deployment
+        await supabase.from("shelby_deployments").insert({
+          project_id: data.id,
+          content_hash: hash,
+          version_url: latestVersionUrl,
+          status: "succeeded",
+          trigger: "manual",
+          message: "Initial deployment",
+        });
+
         const newProject: Project = {
           ...projectData,
           id: data.id,
           slug: data.slug,
-          status: "processing",
+          hash,
+          status: "live",
+          latestVersionUrl,
           deployments: [],
-          files: [],
-          hash: "",
-          deployedAt: null,
-          size: 0,
+          files,
+          deployedAt: data.deployed_at,
+          size,
           chain: data.chain as Chain,
         } as Project;
 
-        setProjects(prev => [newProject, ...prev]);
-        toast.success("Project created successfully");
+        setProjects((prev) => [newProject, ...prev]);
+        toast.success("Project deployed successfully!");
         return newProject;
       } catch (error: any) {
         console.error("Error creating project:", error);
-        toast.error("Failed to create project");
+        setUploadProgress(null);
+        toast.error(`Deployment failed: ${error.message}`);
         return null;
       }
     };
@@ -250,30 +355,34 @@ export function ShelbyHostProvider({ children }: { children: React.ReactNode }) 
     return {
       projects,
       loading,
+      uploadProgress,
       wallet,
       createProject,
       addProject: createProject,
       deployProject: async (projectId: string, files: FileEntry[], message?: string) => {
         try {
-          toast.info("Starting deployment...");
-          const hash = await generateRealHash(files);
-          const project = projects.find(p => p.id === projectId);
+          toast.info("Starting deployment…");
+          const project = projects.find((p) => p.id === projectId);
           if (!project) return false;
 
-          const vUrl = versionUrl(project.slug, hash);
+          const hash = await generateRealHash(files);
           const totalSize = files.reduce((sum, f) => sum + f.size, 0);
 
-          const { error: dError } = await supabase
-            .from("shelby_deployments")
-            .insert({
-              project_id: projectId,
-              content_hash: hash,
-              version_url: vUrl,
-              status: "succeeded",
-              trigger: "manual",
-              message: message || "Manual deployment",
-            });
+          // Upload files
+          setUploadProgress(0);
+          const vUrl = await uploadFilesToStorage(hash, files, (pct) =>
+            setUploadProgress(pct)
+          );
+          setUploadProgress(null);
 
+          const { error: dError } = await supabase.from("shelby_deployments").insert({
+            project_id: projectId,
+            content_hash: hash,
+            version_url: vUrl,
+            status: "succeeded",
+            trigger: "manual",
+            message: message || "Manual re-deployment",
+          });
           if (dError) throw dError;
 
           const { error: pError } = await supabase
@@ -284,9 +393,9 @@ export function ShelbyHostProvider({ children }: { children: React.ReactNode }) 
               deployed_at: now(),
               size_bytes: totalSize,
               status: "live",
+              files: files.map((f) => ({ name: f.name, size: f.size, type: f.type, path: f.path })) as any,
             })
             .eq("id", projectId);
-
           if (pError) throw pError;
 
           await fetchProjects();
@@ -294,7 +403,8 @@ export function ShelbyHostProvider({ children }: { children: React.ReactNode }) 
           return true;
         } catch (error: any) {
           console.error("Deployment error:", error);
-          toast.error("Deployment failed");
+          setUploadProgress(null);
+          toast.error(`Deployment failed: ${error.message}`);
           return false;
         }
       },
@@ -364,11 +474,9 @@ export function ShelbyHostProvider({ children }: { children: React.ReactNode }) 
       },
       connectWallet: async (chain: Chain, address: string, provider: string) => {
         try {
-          const { data: { user: sbUser } } = await supabase.auth.getUser();
           const { data, error } = await supabase
             .from("shelby_wallet_connections")
             .upsert({
-              user_id: sbUser?.id,
               chain,
               address,
               wallet_provider: provider,
@@ -404,10 +512,9 @@ export function ShelbyHostProvider({ children }: { children: React.ReactNode }) 
             .from("shelby_github_connections")
             .insert({
               project_id: project.id,
-              account: githubData?.account,
-              repository: githubData?.repository,
-              branch: githubData?.branch,
-              status: "active",
+              account: githubData?.account ?? "",
+              repository: githubData?.repository ?? "",
+              branch: githubData?.branch ?? "main",
             });
 
           if (error) throw error;
@@ -432,15 +539,41 @@ export function ShelbyHostProvider({ children }: { children: React.ReactNode }) 
         }
       },
       fetchGithubRepos: async () => {
-        return [];
+        // Look up linked GitHub account in Privy user
+        const githubAccount = user?.linkedAccounts?.find(
+          (acc: any) => acc.type === "github_oauth"
+        ) as any;
+        if (!githubAccount) return [];
+
+        try {
+          // Call the edge function proxy to avoid CORS + token exposure
+          const { data, error } = await supabase.functions.invoke("github-repos");
+          if (error) throw error;
+          return data?.repos ?? [];
+        } catch (err) {
+          console.error("Failed to fetch GitHub repos:", err);
+          return [];
+        }
       },
       generateHash: generateRealHash,
       generateSlug: (name: string) => name.toLowerCase().replace(/[^a-z0-9]/g, "-"),
-      checkBuildOutput: (files: FileEntry[]) => {
-        return files.some(f => f.name.endsWith('index.html'));
+      checkBuildOutput: (files: FileEntry[], buildOutput = "dist"): BuildCheckResult => {
+        const hasIndex = files.some(
+          (f) =>
+            f.path === `/${buildOutput}/index.html` ||
+            f.path === `/index.html` ||
+            f.name === "index.html"
+        );
+        if (hasIndex) {
+          return { valid: true, message: `✓ Found index.html in ${buildOutput}/ — ready to deploy.` };
+        }
+        return {
+          valid: false,
+          message: `✗ No index.html found in ${buildOutput}/. Run your build command first (e.g. npm run build).`,
+        };
       }
     };
-  }, [projects, loading, wallet, user, authenticated]);
+  }, [projects, loading, uploadProgress, wallet, user, authenticated]);
 
   return <ShelbyHostContext.Provider value={value}>{children}</ShelbyHostContext.Provider>;
 }

@@ -67,27 +67,38 @@ export function AptosProvider({ children }: { children: React.ReactNode }) {
     checkInjected();
   }, []);
 
-  const address = user?.aptos?.address || aptosWallet?.address || injectedAddress;
+  const address = (user as any)?.aptos?.address || aptosWallet?.address || injectedAddress;
 
   useEffect(() => {
     if (ready) {
       setCachedAddress(authenticated || !!injectedAddress ? address : undefined);
-      
-      if (aptosWallet) {
-        setCachedSignAndSubmit(async (tx: any) => {
-          const provider = await aptosWallet.getProvider();
-          // Logic for signing...
-          return { hash: "0x..." }; 
-        });
-      } else if (injectedAddress) {
+
+      // Prefer injected window.aptos (Petra, Martian, etc.) for signing
+      // since the Privy Aptos wallet adapter path is more complex.
+      if (injectedAddress) {
         setCachedSignAndSubmit(async (tx: any) => {
           // @ts-ignore
-          if (window.aptos) {
-            // @ts-ignore
-            return await window.aptos.signAndSubmitTransaction(tx);
-          }
-          throw new Error("Aptos wallet not found");
+          if (!window.aptos) throw new Error("Aptos wallet extension not found. Please install Petra or Martian.");
+          // @ts-ignore
+          const result = await window.aptos.signAndSubmitTransaction(tx.data ?? tx);
+          if (!result?.hash) throw new Error("Transaction failed: no hash returned from wallet.");
+          return result;
         });
+      } else if (aptosWallet) {
+        // Privy embedded wallet path
+        setCachedSignAndSubmit(async (tx: any) => {
+          // @ts-ignore
+          const provider = await aptosWallet.getProvider() as any;
+          if (!provider?.signAndSubmitTransaction) {
+            throw new Error("Connected wallet does not support Aptos signing.");
+          }
+          const result = await provider.signAndSubmitTransaction(tx.data ?? tx);
+          if (!result?.hash) throw new Error("Transaction failed: no hash returned from wallet.");
+          return result;
+        });
+      } else {
+        // No wallet connected — clear sign function
+        setCachedSignAndSubmit(undefined);
       }
     }
   }, [ready, authenticated, address, aptosWallet, injectedAddress]);
@@ -117,7 +128,7 @@ export function AptosWalletButton({ compact = false }: { compact?: boolean }) {
   }, []);
   
   const aptosWallet = wallets.find(w => w.walletClientType.toLowerCase().includes('aptos'));
-  const address = user?.aptos?.address || aptosWallet?.address || injectedAddress;
+  const address = (user as any)?.aptos?.address || aptosWallet?.address || injectedAddress;
   const displayAddress = address ? `${address.slice(0, 6)}...${address.slice(-4)}` : "";
 
   const handleConnect = async () => {

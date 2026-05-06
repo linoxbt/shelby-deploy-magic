@@ -36,7 +36,7 @@ export function LogoMark() {
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const location = useLocation();
-  const { wallet, connectWallet } = useShelbyHost();
+  const { wallet } = useShelbyHost();
 
   return (
     <div className="min-h-screen bg-background text-foreground">
@@ -65,7 +65,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               <p className="truncate font-mono text-xs text-sidebar-foreground/60">{wallet?.address ?? "Not connected"}</p>
             </div>
           </div>
-          {!wallet && <button onClick={() => connectWallet("aptos")} className="mt-3 w-full rounded-md bg-sidebar-foreground px-3 py-2 text-xs font-extrabold text-sidebar transition hover:opacity-90">Connect Aptos</button>}
+          {!wallet && <Link to="/deploy" className="mt-3 w-full rounded-md bg-sidebar-foreground px-3 py-2 text-xs font-extrabold text-sidebar transition hover:opacity-90 text-center block">Connect Aptos</Link>}
         </div>
       </aside>
       <main className="pb-20 lg:pl-64 lg:pb-0">
