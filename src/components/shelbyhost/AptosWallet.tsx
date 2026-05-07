@@ -123,7 +123,9 @@ export function AptosWalletButton({ compact = false }: { compact?: boolean }) {
           // @ts-ignore
           const account = await window.aptos.account();
           if (account?.address) setInjectedAddress(account.address);
-        } catch (e) {}
+        } catch (e) {
+          // Silently fail if wallet check fails
+        }
       }
     };
     checkInjected();

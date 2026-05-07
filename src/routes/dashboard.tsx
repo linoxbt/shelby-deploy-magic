@@ -1,6 +1,6 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { Github, Loader2, Plus, Server, ShieldCheck, UploadCloud, Wallet, Zap } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { usePrivy } from "@privy-io/react-auth";
 import { AppShell, formatBytes, StatusBadge } from "../components/shelbyhost/AppShell";
 import { ProjectCard } from "../components/shelbyhost/ProjectCard";
@@ -38,24 +38,22 @@ interface GithubRepo {
   language: string | null;
 }
 
-interface GithubReposResponse {
-  account: GithubAccount | null;
-  repos: GithubRepo[];
-}
-
 function Dashboard() {
-  const { projects, loading, wallet, connectWallet, connectGithub, fetchGithubRepos, linkGithub } =
+  const { projects, loading, wallet, connectGithub, fetchGithubRepos, linkGithub } =
     useShelbyHost();
   const { user, authenticated, ready } = usePrivy();
   const navigate = useNavigate();
+
+  const [githubAccount, setGithubAccount] = useState<GithubAccount | null>(null);
+  const [repos, setRepos] = useState<GithubRepo[]>([]);
+  const [repoStatus, setRepoStatus] = useState("Connect GitHub to fetch your repositories.");
+  const [selectedRepo, setSelectedRepo] = useState<GithubRepo | null>(null);
 
   useEffect(() => {
     if (ready && !authenticated) {
       navigate({ to: "/" });
     }
   }, [ready, authenticated, navigate]);
-
-  const [githubAccount, setGithubAccount] = useState<GithubAccount | null>(null);
 
   useEffect(() => {
     const github = user?.linkedAccounts.find((acc) => acc.type === "github_oauth") as any;
@@ -70,12 +68,7 @@ function Dashboard() {
     }
   }, [user]);
 
-  const [repos, setRepos] = useState<GithubRepo[]>([]);
-  const [repoStatus, setRepoStatus] = useState("Connect GitHub to fetch your repositories.");
-  const [selectedRepo, setSelectedRepo] = useState<GithubRepo | null>(null);
-
   useEffect(() => {
-    if (!authenticated) return;
     const loadData = async () => {
       try {
         const data = await fetchGithubRepos();
@@ -99,8 +92,35 @@ function Dashboard() {
         console.error("Dashboard repo fetch error:", error);
       }
     };
-    loadData();
+    if (authenticated) {
+      loadData();
+    }
   }, [fetchGithubRepos, authenticated]);
+
+  const totalSize = useMemo(
+    () => projects.reduce((sum, project) => sum + project.size, 0),
+    [projects],
+  );
+  const latestDeployments = useMemo(
+    () =>
+      projects
+        .flatMap((project) =>
+          project.deployments.map((deployment) => ({
+            ...deployment,
+            projectName: project.name,
+            slug: project.slug,
+          })),
+        )
+        .sort((a, b) => {
+          const timeA = a.timestamp ? new Date(a.timestamp).getTime() : 0;
+          const timeB = b.timestamp ? new Date(b.timestamp).getTime() : 0;
+          return timeB - timeA;
+        })
+        .slice(0, 6),
+    [projects],
+  );
+
+  const firstProject = projects[0];
 
   if (!ready || loading) {
     return (
@@ -114,50 +134,6 @@ function Dashboard() {
 
   if (!authenticated) return null;
 
-  const totalSize = projects.reduce((sum, project) => sum + project.size, 0);
-  const latestDeployments = projects
-    .flatMap((project) =>
-      project.deployments.map((deployment) => ({
-        ...deployment,
-        projectName: project.name,
-        slug: project.slug,
-      })),
-    )
-    .sort((a, b) => {
-      const timeA = a.timestamp ? new Date(a.timestamp).getTime() : 0;
-      const timeB = b.timestamp ? new Date(b.timestamp).getTime() : 0;
-      return timeB - timeA;
-    })
-    .slice(0, 6);
-  const firstProject = projects[0];
-
-  useEffect(() => {
-    const loadData = async () => {
-      try {
-        const data = await fetchGithubRepos();
-        if (data && data.length > 0) {
-          setRepos(
-            data.map((r: any) => ({
-              id: r.id,
-              name: r.name,
-              fullName: r.full_name,
-              owner: r.owner.login,
-              private: r.private,
-              defaultBranch: r.default_branch,
-              htmlUrl: r.html_url,
-              pushedAt: r.pushed_at,
-              language: r.language,
-            })),
-          );
-          setRepoStatus(`${data.length} repositories fetched from GitHub.`);
-        }
-      } catch (error) {
-        console.error("Dashboard repo fetch error:", error);
-      }
-    };
-    loadData();
-  }, [fetchGithubRepos]);
-
   const importSelectedRepo = () => {
     if (!firstProject || !selectedRepo) return;
     connectGithub(firstProject.slug, {
@@ -166,6 +142,7 @@ function Dashboard() {
       branch: selectedRepo.defaultBranch,
     });
   };
+
   const stats = [
     { label: "Total Projects", value: projects.length.toString(), icon: Server },
     { label: "Total Storage", value: formatBytes(totalSize), icon: UploadCloud },
@@ -272,8 +249,7 @@ function Dashboard() {
             )}
             {firstProject?.github && (
               <p className="mt-4 font-mono text-xs text-primary">
-                {firstProject.github.repository}@{firstProject.github.branch} →{" "}
-                {firstProject.github.workflowFile}
+                {firstProject.github.repository}@{firstProject.github.branch}
               </p>
             )}
           </div>
@@ -303,6 +279,9 @@ function Dashboard() {
                   </a>
                 </div>
               ))}
+              {latestDeployments.length === 0 && (
+                <p className="text-sm text-muted-foreground">No recent deployments found.</p>
+              )}
             </div>
           </div>
         </section>

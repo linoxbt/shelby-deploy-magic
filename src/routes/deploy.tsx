@@ -88,6 +88,8 @@ function Deploy() {
   const [deployed, setDeployed] = useState<Project | null>(null);
   const [copied, setCopied] = useState(false);
 
+  const slug = useMemo(() => generateSlug(name), [generateSlug, name]);
+
   if (!ready || loading) {
     return (
       <AppShell>
@@ -99,7 +101,6 @@ function Deploy() {
   }
 
   if (!authenticated) return null;
-  const slug = useMemo(() => generateSlug(name), [generateSlug, name]);
   const size = files.reduce((sum, file) => sum + file.size, 0);
   const buildCheck = checkBuildOutput(files, buildOutput);
 
