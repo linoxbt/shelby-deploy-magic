@@ -311,8 +311,7 @@ function Deploy() {
               <input
                 type="file"
                 className="hidden"
-                webkitdirectory=""
-                directory=""
+                {...( { webkitdirectory: "", directory: "" } as any)}
                 onChange={handleFileSelect}
               />
             </label>
