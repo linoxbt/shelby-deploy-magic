@@ -249,7 +249,7 @@ function ProjectDetail() {
                     <span className="font-bold text-foreground">{project.domain.domain}</span>
                     <StatusBadge status={project.domain.status as any} />
                   </div>
-                  {project.domain.status !== 'verified' && (
+                  {project.domain.status !== 'active' && (
                     <div className="mt-3 space-y-3">
                       <div className="rounded bg-background/50 p-2 text-[10px] text-muted-foreground">
                         <p className="font-bold uppercase text-primary">DNS Setup Instructions:</p>
