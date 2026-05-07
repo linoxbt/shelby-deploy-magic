@@ -1,6 +1,6 @@
-# 🚀 ShelbyHost — Decentralized Frontend Hosting
+# 🚀 ShelbyHost - Decentralized Frontend Hosting
 
-ShelbyHost is a next-generation deployment platform designed for the decentralized web. Built on top of the **Shelby Protocol** and secured by the **Aptos Blockchain**, ShelbyHost provides developers with a professional, immutable, and censorship-resistant workflow for hosting static frontends.
+ShelbyHost is a next-generation deployment platform designed for the decentralized web. Built on top of the **Shelby Protocol** and secured by the **Aptos Blockchain**, ShelbyHost provides developers with a professional, immutable, and censorship resistant workflow for hosting static frontends.
 
 ---
 
@@ -11,13 +11,13 @@ Deploy your assets to decentralized hot storage. Once uploaded, your project's c
 
 ### ⛓️ Aptos Registry & Integrity
 Every deployment is anchored to the **Aptos Testnet**. 
-- **Immutable Proof**: Content hashes are registered on-chain in a public registry contract.
-- **Verifiable Deploys**: Users can verify the integrity of the frontend they are accessing by cross-referencing the on-chain state.
+- **Immutable Proof**: Content hashes are registered onchain in a public registry contract.
+- **Verifiable Deploys**: Users can verify the integrity of the frontend they are accessing by cross referencing the onchain state.
 
 ### 💳 Transparent Monetization
 To sustain the decentralized infrastructure, ShelbyHost implements a mandatory deployment fee:
 - **Fee**: 0.1 Shelby USDT
-- **Mechanism**: The fee is processed on-chain before the project registration is finalized, ensuring a trustless service model.
+- **Mechanism**: The fee is processed onchain before the project registration is finalized, ensuring a trustless service model.
 
 ### 🌍 Professional Routing
 - **Wildcard Subdomains**: Every project automatically receives a `<slug>.shelbyhost.xyz` URL.
@@ -29,10 +29,10 @@ To sustain the decentralized infrastructure, ShelbyHost implements a mandatory d
 ## 🛠️ Technical Architecture
 
 ### Core Components:
-1. **Frontend Control Plane**: Built with Vite, React, and TanStack Router for a high-performance developer experience.
+1. **Frontend Control Plane**: Built with Vite, React, and TanStack Router for a high performance developer experience.
 2. **Identity**: Integrated with **Privy** for secure, multi-method authentication (Google, GitHub, Email, and Wallets).
-3. **Storage Nodes**: Powered by the Shelby Node network for high-availability content delivery.
-4. **Registry Contract**: A Move-based smart contract on Aptos that maintains the project-to-hash mapping.
+3. **Storage Nodes**: Powered by the Shelby Node network for high availability content delivery.
+4. **Registry Contract**: A Move based smart contract on Aptos that maintains the project-to-hash mapping.
 
 ---
 
