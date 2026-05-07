@@ -17,7 +17,7 @@ export function ProjectCard({ project }: { project: Project }) {
             {project.name}
           </Link>
           <p className="mt-1 truncate font-mono text-sm text-primary">
-            shelbyhost.pages.dev/p/{project.slug}
+            shelbyhost.xyz/p/{project.slug}
           </p>
         </div>
         <StatusBadge status={project.status} />

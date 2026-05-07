@@ -311,7 +311,7 @@ function Deploy() {
               <input
                 type="file"
                 className="hidden"
-                {...( { webkitdirectory: "", directory: "" } as any)}
+                {...({ webkitdirectory: "", directory: "" } as any)}
                 onChange={handleFileSelect}
               />
             </label>
@@ -416,7 +416,7 @@ function Deploy() {
               </label>
             </div>
             <div className="rounded-md border border-border bg-secondary p-3 font-mono text-sm text-primary">
-              Preview URL: shelbyhost.pages.dev/p/{slug}
+              Preview URL: shelbyhost.xyz/p/{slug}
             </div>
             <AptosWalletButton />
             <button

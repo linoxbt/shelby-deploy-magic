@@ -103,7 +103,7 @@ function ProjectDetail() {
     );
   }
 
-  const publicUrl = `shelbyhost.pages.dev/p/${project.slug}`;
+  const publicUrl = `shelbyhost.xyz/p/${project.slug}`;
   const latest = project.deployments[0];
   const successCount = project.deployments.filter(
     (d) => d.status === "succeeded" || d.status === "verified",
