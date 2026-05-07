@@ -4,13 +4,14 @@ import { encodeHex } from "https://deno.land/std@0.208.0/encoding/hex.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-hub-signature-256",
+  "Access-Control-Allow-Headers":
+    "authorization, x-client-info, apikey, content-type, x-hub-signature-256",
 };
 
 async function verifyGithubSignature(
   secret: string,
   payload: string,
-  signature: string
+  signature: string,
 ): Promise<boolean> {
   try {
     const encoder = new TextEncoder();
@@ -19,7 +20,7 @@ async function verifyGithubSignature(
       encoder.encode(secret),
       { name: "HMAC", hash: "SHA-256" },
       false,
-      ["sign"]
+      ["sign"],
     );
     const sig = await crypto.subtle.sign("HMAC", key, encoder.encode(payload));
     const expected = `sha256=${encodeHex(new Uint8Array(sig))}`;
@@ -37,7 +38,7 @@ Deno.serve(async (req) => {
   try {
     const supabase = createClient(
       Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
     );
 
     const webhookSecret = Deno.env.get("GITHUB_WEBHOOK_SECRET") ?? "";
@@ -123,7 +124,7 @@ Deno.serve(async (req) => {
       {
         status: 200,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
-      }
+      },
     );
   } catch (err) {
     console.error("github-webhook error:", err);

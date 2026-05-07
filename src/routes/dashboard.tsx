@@ -44,7 +44,8 @@ interface GithubReposResponse {
 }
 
 function Dashboard() {
-  const { projects, loading, wallet, connectWallet, connectGithub, fetchGithubRepos, linkGithub } = useShelbyHost();
+  const { projects, loading, wallet, connectWallet, connectGithub, fetchGithubRepos, linkGithub } =
+    useShelbyHost();
   const { user, authenticated, ready } = usePrivy();
   const navigate = useNavigate();
 
@@ -90,7 +91,7 @@ function Dashboard() {
               htmlUrl: r.html_url,
               pushedAt: r.pushed_at,
               language: r.language,
-            }))
+            })),
           );
           setRepoStatus(`${data.length} repositories fetched from GitHub.`);
         }
@@ -135,17 +136,19 @@ function Dashboard() {
       try {
         const data = await fetchGithubRepos();
         if (data && data.length > 0) {
-          setRepos(data.map((r: any) => ({
-            id: r.id,
-            name: r.name,
-            fullName: r.full_name,
-            owner: r.owner.login,
-            private: r.private,
-            defaultBranch: r.default_branch,
-            htmlUrl: r.html_url,
-            pushedAt: r.pushed_at,
-            language: r.language
-          })));
+          setRepos(
+            data.map((r: any) => ({
+              id: r.id,
+              name: r.name,
+              fullName: r.full_name,
+              owner: r.owner.login,
+              private: r.private,
+              defaultBranch: r.default_branch,
+              htmlUrl: r.html_url,
+              pushedAt: r.pushed_at,
+              language: r.language,
+            })),
+          );
           setRepoStatus(`${data.length} repositories fetched from GitHub.`);
         }
       } catch (error) {

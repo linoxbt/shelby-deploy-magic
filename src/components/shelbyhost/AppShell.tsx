@@ -28,7 +28,10 @@ export function ShelbyLogo({ compact = false }: { compact?: boolean }) {
 
 export function LogoMark() {
   return (
-    <Link to="/" className="group flex items-center gap-3 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 focus:ring-offset-background">
+    <Link
+      to="/"
+      className="group flex items-center gap-3 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 focus:ring-offset-background"
+    >
       <ShelbyLogo />
     </Link>
   );
@@ -46,9 +49,15 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         <nav className="mt-10 space-y-2">
           {navItems.map((item) => {
             const Icon = item.icon;
-            const active = location.pathname === item.to || (item.label === "Projects" && location.pathname.startsWith("/project"));
+            const active =
+              location.pathname === item.to ||
+              (item.label === "Projects" && location.pathname.startsWith("/project"));
             return (
-              <Link key={item.label} to={item.to} className={`flex items-center gap-3 rounded-md border-l-2 px-3 py-2.5 text-sm font-bold transition ${active ? "border-sidebar-foreground bg-sidebar-foreground/10 text-sidebar-foreground" : "border-transparent text-sidebar-foreground/60 hover:bg-sidebar-foreground/10 hover:text-sidebar-foreground"}`}>
+              <Link
+                key={item.label}
+                to={item.to}
+                className={`flex items-center gap-3 rounded-md border-l-2 px-3 py-2.5 text-sm font-bold transition ${active ? "border-sidebar-foreground bg-sidebar-foreground/10 text-sidebar-foreground" : "border-transparent text-sidebar-foreground/60 hover:bg-sidebar-foreground/10 hover:text-sidebar-foreground"}`}
+              >
                 <Icon className="h-4 w-4" />
                 {item.label}
               </Link>
@@ -61,11 +70,22 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               <FolderGit2 className="h-4 w-4" />
             </div>
             <div className="min-w-0 flex-1">
-              <p className="text-sm font-semibold text-sidebar-foreground">{wallet ? `${wallet.chain.toUpperCase()} wallet` : "Builder wallet"}</p>
-              <p className="truncate font-mono text-xs text-sidebar-foreground/60">{wallet?.address ?? "Not connected"}</p>
+              <p className="text-sm font-semibold text-sidebar-foreground">
+                {wallet ? `${wallet.chain.toUpperCase()} wallet` : "Builder wallet"}
+              </p>
+              <p className="truncate font-mono text-xs text-sidebar-foreground/60">
+                {wallet?.address ?? "Not connected"}
+              </p>
             </div>
           </div>
-          {!wallet && <Link to="/deploy" className="mt-3 w-full rounded-md bg-sidebar-foreground px-3 py-2 text-xs font-extrabold text-sidebar transition hover:opacity-90 text-center block">Connect Aptos</Link>}
+          {!wallet && (
+            <Link
+              to="/deploy"
+              className="mt-3 w-full rounded-md bg-sidebar-foreground px-3 py-2 text-xs font-extrabold text-sidebar transition hover:opacity-90 text-center block"
+            >
+              Connect Aptos
+            </Link>
+          )}
         </div>
       </aside>
       <main className="pb-20 lg:pl-64 lg:pb-0">
@@ -83,7 +103,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           const Icon = item.icon;
           const active = location.pathname === item.to;
           return (
-            <Link key={item.label} to={item.to} className={`flex flex-col items-center gap-1 rounded-md px-2 py-1.5 text-xs ${active ? "text-sidebar-foreground" : "text-sidebar-foreground/55"}`}>
+            <Link
+              key={item.label}
+              to={item.to}
+              className={`flex flex-col items-center gap-1 rounded-md px-2 py-1.5 text-xs ${active ? "text-sidebar-foreground" : "text-sidebar-foreground/55"}`}
+            >
               <Icon className="h-4 w-4" />
               {item.label}
             </Link>
@@ -94,9 +118,20 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   );
 }
 
-export function StatusBadge({ status }: { status: "live" | "processing" | "failed" | "verified" | "pending" | "queued" | "succeeded" }) {
+export function StatusBadge({
+  status,
+}: {
+  status: "live" | "processing" | "failed" | "verified" | "pending" | "queued" | "succeeded";
+}) {
   const label = status.charAt(0).toUpperCase() + status.slice(1);
-  return <span className={`inline-flex items-center gap-2 rounded-full border px-2.5 py-1 text-xs font-semibold ${status === "live" || status === "verified" || status === "succeeded" ? "border-success/30 bg-success/10 text-success" : status === "failed" ? "border-destructive/30 bg-destructive/10 text-destructive" : "border-warning/30 bg-warning/10 text-warning"}`}><span className="h-1.5 w-1.5 rounded-full bg-current" />{label}</span>;
+  return (
+    <span
+      className={`inline-flex items-center gap-2 rounded-full border px-2.5 py-1 text-xs font-semibold ${status === "live" || status === "verified" || status === "succeeded" ? "border-success/30 bg-success/10 text-success" : status === "failed" ? "border-destructive/30 bg-destructive/10 text-destructive" : "border-warning/30 bg-warning/10 text-warning"}`}
+    >
+      <span className="h-1.5 w-1.5 rounded-full bg-current" />
+      {label}
+    </span>
+  );
 }
 
 export function formatBytes(bytes: number) {

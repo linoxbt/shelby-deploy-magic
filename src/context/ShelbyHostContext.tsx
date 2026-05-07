@@ -83,10 +83,18 @@ interface ShelbyHostContextValue {
   addProject: (data: Partial<Project>) => Promise<Project | null>;
   deployProject: (projectId: string, files: FileEntry[], message?: string) => Promise<boolean>;
   deleteProject: (projectId: string) => Promise<boolean>;
-  updateProject: (slug: string, updates: Partial<Project>, trigger?: DeploymentTrigger) => Promise<boolean>;
+  updateProject: (
+    slug: string,
+    updates: Partial<Project>,
+    trigger?: DeploymentTrigger,
+  ) => Promise<boolean>;
   registerDomain: (slug: string, domain: string) => Promise<boolean>;
   verifyDomain: (slug: string, domain: string) => Promise<boolean>;
-  connectWallet: (chain: Chain, address: string, provider: string) => Promise<WalletConnection | null>;
+  connectWallet: (
+    chain: Chain,
+    address: string,
+    provider: string,
+  ) => Promise<WalletConnection | null>;
   connectGithub: (slug: string, githubData: Project["github"]) => Promise<boolean>;
   triggerGithubDeploy: (slug: string) => Promise<boolean>;
   fetchGithubRepos: () => Promise<any[]>;
@@ -130,7 +138,7 @@ function getMimeType(filename: string): string {
 async function uploadFilesToStorage(
   hash: string,
   files: FileEntry[],
-  onProgress?: (pct: number) => void
+  onProgress?: (pct: number) => void,
 ): Promise<string> {
   const realFiles = files.filter((f) => f.file);
   let uploaded = 0;
@@ -139,12 +147,10 @@ async function uploadFilesToStorage(
     const storagePath = `${hash}${entry.path}`;
     const contentType = entry.file!.type || getMimeType(entry.name);
 
-    const { error } = await supabase.storage
-      .from("shelby_nodes")
-      .upload(storagePath, entry.file!, {
-        contentType,
-        upsert: true,
-      });
+    const { error } = await supabase.storage.from("shelby_nodes").upload(storagePath, entry.file!, {
+      contentType,
+      upsert: true,
+    });
 
     if (error) {
       console.error(`Upload failed for ${storagePath}:`, error);
@@ -166,9 +172,9 @@ const generateRealHash = async (files: FileEntry[]) => {
     let fileHash = "";
     if (file.file) {
       const buffer = await file.file.arrayBuffer();
-      const hashBuffer = await crypto.subtle.digest('SHA-256', buffer);
+      const hashBuffer = await crypto.subtle.digest("SHA-256", buffer);
       const hashArray = Array.from(new Uint8Array(hashBuffer));
-      fileHash = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+      fileHash = hashArray.map((b) => b.toString(16).padStart(2, "0")).join("");
     } else {
       fileHash = `mock-${file.size}-${file.name}`;
     }
@@ -176,9 +182,9 @@ const generateRealHash = async (files: FileEntry[]) => {
   }
 
   const encoder = new TextEncoder();
-  const finalBuffer = await crypto.subtle.digest('SHA-256', encoder.encode(combinedHashData));
+  const finalBuffer = await crypto.subtle.digest("SHA-256", encoder.encode(combinedHashData));
   const finalArray = Array.from(new Uint8Array(finalBuffer));
-  return finalArray.map(b => b.toString(16).padStart(2, '0')).join('');
+  return finalArray.map((b) => b.toString(16).padStart(2, "0")).join("");
 };
 
 export function ShelbyHostProvider({ children }: { children: React.ReactNode }) {
@@ -198,13 +204,15 @@ export function ShelbyHostProvider({ children }: { children: React.ReactNode }) 
 
       const { data, error } = await supabase
         .from("shelby_projects")
-        .select(`
+        .select(
+          `
           *,
           shelby_deployments (*),
           shelby_domain_mappings (*),
           shelby_github_connections (*),
           shelby_wallet_connections (*)
-        `)
+        `,
+        )
         .order("created_at", { ascending: false });
 
       if (error) throw error;
@@ -225,32 +233,40 @@ export function ShelbyHostProvider({ children }: { children: React.ReactNode }) 
         latestVersionUrl: p.latest_version_url,
         chain: (p.chain || "aptos") as Chain,
         walletAddress: p.wallet_address,
-        domain: p.shelby_domain_mappings?.[0] ? {
-          domain: p.shelby_domain_mappings[0].domain,
-          status: p.shelby_domain_mappings[0].status as any,
-          target: p.shelby_domain_mappings[0].target,
-          slug: p.shelby_domain_mappings[0].slug,
-          hash: p.shelby_domain_mappings[0].content_hash,
-          kvKey: p.shelby_domain_mappings[0].kv_key,
-        } : undefined,
-        github: p.shelby_github_connections?.[0] ? {
-          account: p.shelby_github_connections[0].account,
-          repository: p.shelby_github_connections[0].repository,
-          branch: p.shelby_github_connections[0].branch,
-          workflowFile: p.shelby_github_connections[0].workflow_file,
-          webhookStatus: p.shelby_github_connections[0].webhook_status as any,
-          lastPushAt: p.shelby_github_connections[0].last_push_at,
-        } : undefined,
-        deployments: (p.shelby_deployments || []).map((d: any) => ({
-          id: d.id,
-          projectId: d.project_id,
-          status: d.status as DeploymentStatus,
-          trigger: d.trigger as DeploymentTrigger,
-          timestamp: d.created_at,
-          versionUrl: d.version_url,
-          hash: d.content_hash,
-          message: d.message,
-        })).sort((a: any, b: any) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()),
+        domain: p.shelby_domain_mappings?.[0]
+          ? {
+              domain: p.shelby_domain_mappings[0].domain,
+              status: p.shelby_domain_mappings[0].status as any,
+              target: p.shelby_domain_mappings[0].target,
+              slug: p.shelby_domain_mappings[0].slug,
+              hash: p.shelby_domain_mappings[0].content_hash,
+              kvKey: p.shelby_domain_mappings[0].kv_key,
+            }
+          : undefined,
+        github: p.shelby_github_connections?.[0]
+          ? {
+              account: p.shelby_github_connections[0].account,
+              repository: p.shelby_github_connections[0].repository,
+              branch: p.shelby_github_connections[0].branch,
+              workflowFile: p.shelby_github_connections[0].workflow_file,
+              webhookStatus: p.shelby_github_connections[0].webhook_status as any,
+              lastPushAt: p.shelby_github_connections[0].last_push_at,
+            }
+          : undefined,
+        deployments: (p.shelby_deployments || [])
+          .map((d: any) => ({
+            id: d.id,
+            projectId: d.project_id,
+            status: d.status as DeploymentStatus,
+            trigger: d.trigger as DeploymentTrigger,
+            timestamp: d.created_at,
+            versionUrl: d.version_url,
+            hash: d.content_hash,
+            message: d.message,
+          }))
+          .sort(
+            (a: any, b: any) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime(),
+          ),
       }));
 
       setProjects(mappedProjects);
@@ -288,7 +304,7 @@ export function ShelbyHostProvider({ children }: { children: React.ReactNode }) 
           toast.info("Uploading files to storage…");
           setUploadProgress(0);
           latestVersionUrl = await uploadFilesToStorage(hash, files, (pct) =>
-            setUploadProgress(pct)
+            setUploadProgress(pct),
           );
           setUploadProgress(null);
         } else if (!latestVersionUrl) {
@@ -311,7 +327,12 @@ export function ShelbyHostProvider({ children }: { children: React.ReactNode }) 
             content_hash: hash,
             latest_version_url: latestVersionUrl,
             size_bytes: size,
-            files: files.map((f) => ({ name: f.name, size: f.size, type: f.type, path: f.path })) as any,
+            files: files.map((f) => ({
+              name: f.name,
+              size: f.size,
+              type: f.type,
+              path: f.path,
+            })) as any,
             deployed_at: now(),
           })
           .select()
@@ -372,9 +393,7 @@ export function ShelbyHostProvider({ children }: { children: React.ReactNode }) 
 
           // Upload files
           setUploadProgress(0);
-          const vUrl = await uploadFilesToStorage(hash, files, (pct) =>
-            setUploadProgress(pct)
-          );
+          const vUrl = await uploadFilesToStorage(hash, files, (pct) => setUploadProgress(pct));
           setUploadProgress(null);
 
           const { error: dError } = await supabase.from("shelby_deployments").insert({
@@ -395,7 +414,12 @@ export function ShelbyHostProvider({ children }: { children: React.ReactNode }) 
               deployed_at: now(),
               size_bytes: totalSize,
               status: "live",
-              files: files.map((f) => ({ name: f.name, size: f.size, type: f.type, path: f.path })) as any,
+              files: files.map((f) => ({
+                name: f.name,
+                size: f.size,
+                type: f.type,
+                path: f.path,
+              })) as any,
             })
             .eq("id", projectId);
           if (pError) throw pError;
@@ -412,13 +436,10 @@ export function ShelbyHostProvider({ children }: { children: React.ReactNode }) 
       },
       deleteProject: async (slug: string) => {
         try {
-          const { error } = await supabase
-            .from("shelby_projects")
-            .delete()
-            .eq("slug", slug);
+          const { error } = await supabase.from("shelby_projects").delete().eq("slug", slug);
 
           if (error) throw error;
-          setProjects(prev => prev.filter(p => p.slug !== slug));
+          setProjects((prev) => prev.filter((p) => p.slug !== slug));
           toast.success("Project deleted");
           return true;
         } catch (error: any) {
@@ -427,7 +448,11 @@ export function ShelbyHostProvider({ children }: { children: React.ReactNode }) 
           return false;
         }
       },
-      updateProject: async (slug: string, updates: Partial<Project>, trigger: DeploymentTrigger = "settings") => {
+      updateProject: async (
+        slug: string,
+        updates: Partial<Project>,
+        trigger: DeploymentTrigger = "settings",
+      ) => {
         try {
           const { error } = await supabase
             .from("shelby_projects")
@@ -449,20 +474,21 @@ export function ShelbyHostProvider({ children }: { children: React.ReactNode }) 
       },
       registerDomain: async (slug: string, domain: string) => {
         try {
-          const project = projects.find(p => p.slug === slug);
+          const project = projects.find((p) => p.slug === slug);
           if (!project) return false;
 
-          const { error } = await supabase
-            .from("shelby_domain_mappings")
-            .upsert({
+          const { error } = await supabase.from("shelby_domain_mappings").upsert(
+            {
               project_id: project.id,
               domain,
               status: "pending",
               target: "shelby-gateway",
               slug: project.slug,
               content_hash: project.hash,
-              kv_key: `domain:${domain}`
-            }, { onConflict: "domain" });
+              kv_key: `domain:${domain}`,
+            },
+            { onConflict: "domain" },
+          );
 
           if (error) throw error;
           await fetchProjects();
@@ -478,11 +504,11 @@ export function ShelbyHostProvider({ children }: { children: React.ReactNode }) 
         try {
           toast.info(`Verifying DNS for ${domain}…`);
           const { data, error } = await supabase.functions.invoke("verify-domain", {
-            body: { slug, domain }
+            body: { slug, domain },
           });
 
           if (error) throw error;
-          
+
           if (data?.verified) {
             toast.success("Domain verified!");
             await fetchProjects();
@@ -501,12 +527,15 @@ export function ShelbyHostProvider({ children }: { children: React.ReactNode }) 
         try {
           const { data, error } = await supabase
             .from("shelby_wallet_connections")
-            .upsert({
-              chain,
-              address,
-              wallet_provider: provider,
-              status: "connected"
-            }, { onConflict: "chain,address" })
+            .upsert(
+              {
+                chain,
+                address,
+                wallet_provider: provider,
+                status: "connected",
+              },
+              { onConflict: "chain,address" },
+            )
             .select()
             .single();
 
@@ -516,7 +545,7 @@ export function ShelbyHostProvider({ children }: { children: React.ReactNode }) 
             chain: data.chain as Chain,
             provider: data.wallet_provider as any,
             address: data.address,
-            status: "connected"
+            status: "connected",
           };
 
           setWallet(next);
@@ -530,17 +559,15 @@ export function ShelbyHostProvider({ children }: { children: React.ReactNode }) 
       },
       connectGithub: async (slug: string, githubData: Project["github"]) => {
         try {
-          const project = projects.find(p => p.slug === slug);
+          const project = projects.find((p) => p.slug === slug);
           if (!project) return false;
 
-          const { error } = await supabase
-            .from("shelby_github_connections")
-            .insert({
-              project_id: project.id,
-              account: githubData?.account ?? "",
-              repository: githubData?.repository ?? "",
-              branch: githubData?.branch ?? "main",
-            });
+          const { error } = await supabase.from("shelby_github_connections").insert({
+            project_id: project.id,
+            account: githubData?.account ?? "",
+            repository: githubData?.repository ?? "",
+            branch: githubData?.branch ?? "main",
+          });
 
           if (error) throw error;
           await fetchProjects();
@@ -566,7 +593,7 @@ export function ShelbyHostProvider({ children }: { children: React.ReactNode }) 
       fetchGithubRepos: async () => {
         // Look up linked GitHub account in Privy user
         const githubAccount = user?.linkedAccounts?.find(
-          (acc: any) => acc.type === "github_oauth"
+          (acc: any) => acc.type === "github_oauth",
         ) as any;
         if (!githubAccount) return [];
 
@@ -587,16 +614,19 @@ export function ShelbyHostProvider({ children }: { children: React.ReactNode }) 
           (f) =>
             f.path === `/${buildOutput}/index.html` ||
             f.path === `/index.html` ||
-            f.name === "index.html"
+            f.name === "index.html",
         );
         if (hasIndex) {
-          return { valid: true, message: `✓ Found index.html in ${buildOutput}/ — ready to deploy.` };
+          return {
+            valid: true,
+            message: `✓ Found index.html in ${buildOutput}/ — ready to deploy.`,
+          };
         }
         return {
           valid: false,
           message: `✗ No index.html found in ${buildOutput}/. Run your build command first (e.g. npm run build).`,
         };
-      }
+      },
     };
   }, [projects, loading, uploadProgress, wallet, user, authenticated]);
 

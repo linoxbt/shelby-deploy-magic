@@ -13,13 +13,16 @@ Deno.serve(async (req) => {
   try {
     const supabase = createClient(
       Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
     );
 
     // Verify user session
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) throw new Error("No authorization header");
-    const { data: { user }, error: authError } = await supabase.auth.getUser(authHeader.replace("Bearer ", ""));
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser(authHeader.replace("Bearer ", ""));
     if (authError || !user) throw new Error("Unauthorized");
 
     const { slug, domain } = await req.json();
@@ -42,13 +45,14 @@ Deno.serve(async (req) => {
     // 2. Perform DNS Lookup (using Cloudflare's JSON DNS API)
     // We check for a CNAME pointing to the gateway (e.g., shelbyhost.xyz or vercel project)
     const dnsUrl = `https://cloudflare-dns.com/dns-query?name=${domain}&type=CNAME`;
-    const dnsRes = await fetch(dnsUrl, { headers: { "Accept": "application/dns-json" } });
+    const dnsRes = await fetch(dnsUrl, { headers: { Accept: "application/dns-json" } });
     const dnsData = await dnsRes.json();
 
-    const isVerified = dnsData.Answer?.some((ans: any) => 
-      ans.data.includes("shelbyhost.xyz") || 
-      ans.data.includes("vercel.app") || 
-      ans.data.includes(mapping.target)
+    const isVerified = dnsData.Answer?.some(
+      (ans: any) =>
+        ans.data.includes("shelbyhost.xyz") ||
+        ans.data.includes("vercel.app") ||
+        ans.data.includes(mapping.target),
     );
 
     if (isVerified) {
@@ -58,15 +62,25 @@ Deno.serve(async (req) => {
         .update({ status: "verified", updated_at: new Date().toISOString() })
         .eq("id", mapping.id);
 
-      return new Response(JSON.stringify({ verified: true, message: "Domain verified successfully!" }), {
-        status: 200,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return new Response(
+        JSON.stringify({ verified: true, message: "Domain verified successfully!" }),
+        {
+          status: 200,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        },
+      );
     } else {
-      return new Response(JSON.stringify({ verified: false, message: "DNS record not found or incorrect. Ensure your CNAME points to your project target." }), {
-        status: 200,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return new Response(
+        JSON.stringify({
+          verified: false,
+          message:
+            "DNS record not found or incorrect. Ensure your CNAME points to your project target.",
+        }),
+        {
+          status: 200,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        },
+      );
     }
   } catch (err) {
     return new Response(JSON.stringify({ error: String(err) }), {
