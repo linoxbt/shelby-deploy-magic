@@ -16,6 +16,7 @@ import {
   HardDrive,
   History,
   LayoutGrid,
+  Loader2,
   RefreshCcw,
   Rocket,
   Settings as SettingsIcon,
@@ -23,7 +24,8 @@ import {
   Trash2,
   Zap,
 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { usePrivy } from "@privy-io/react-auth";
 import { AppShell, formatBytes, StatusBadge } from "../components/shelbyhost/AppShell";
 import { useShelbyHost } from "../context/ShelbyHostContext";
 
@@ -35,7 +37,15 @@ export const Route = createFileRoute("/project/$slug")({
 function ProjectDetail() {
   const { slug } = Route.useParams();
   const navigate = useNavigate();
-  const { projects, deleteProject, updateProject, registerDomain, connectGithub, triggerGithubDeploy } = useShelbyHost();
+  const { projects, loading, deleteProject, updateProject, registerDomain, connectGithub, triggerGithubDeploy, verifyDomain } = useShelbyHost();
+  const { authenticated, ready } = usePrivy();
+
+  useEffect(() => {
+    if (ready && !authenticated) {
+      navigate({ to: "/" });
+    }
+  }, [ready, authenticated, navigate]);
+
   const project = projects.find((item) => item.slug === slug);
   const [tab, setTab] = useState<"overview" | "deployments" | "files" | "domains" | "activity" | "settings">("overview");
   const [framework, setFramework] = useState(project?.framework ?? "vite");
@@ -44,6 +54,18 @@ function ProjectDetail() {
   const [repo, setRepo] = useState(project?.github?.repository ?? "shelby-frontend");
   const [branch, setBranch] = useState(project?.github?.branch ?? "main");
   const [copied, setCopied] = useState<string | null>(null);
+
+  if (!ready || loading) {
+    return (
+      <AppShell>
+        <div className="flex min-h-[60vh] items-center justify-center">
+          <Loader2 className="h-10 w-10 animate-spin text-primary" />
+        </div>
+      </AppShell>
+    );
+  }
+
+  if (!authenticated) return null;
 
   if (!project) {
     return <AppShell><div className="mx-auto max-w-3xl px-5 py-20 text-center"><h1 className="text-3xl font-bold text-foreground">Project not found</h1><Link to="/dashboard" className="mt-6 inline-flex rounded-md bg-primary px-4 py-2.5 text-sm font-bold text-primary-foreground">Back to dashboard</Link></div></AppShell>;
@@ -223,9 +245,30 @@ function ProjectDetail() {
             <Panel title="Active domains" icon={Shield}>
               {project.domain ? (
                 <div className="rounded-md border border-border bg-background/40 p-4">
-                  <div className="flex items-center justify-between gap-3"><span className="font-bold text-foreground">{project.domain.domain}</span><StatusBadge status={project.domain.status as any} /></div>
-                  <p className="mt-2 font-mono text-xs text-muted-foreground">KV: {project.domain.kvKey}</p>
-                  <p className="mt-1 font-mono text-xs text-muted-foreground">→ {project.domain.slug} / {project.domain.hash.slice(0, 12)}</p>
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="font-bold text-foreground">{project.domain.domain}</span>
+                    <StatusBadge status={project.domain.status as any} />
+                  </div>
+                  {project.domain.status !== 'verified' && (
+                    <div className="mt-3 space-y-3">
+                      <div className="rounded bg-background/50 p-2 text-[10px] text-muted-foreground">
+                        <p className="font-bold uppercase text-primary">DNS Setup Instructions:</p>
+                        <p className="mt-1">Please add a CNAME record to your DNS provider:</p>
+                        <div className="mt-2 font-mono text-[10px]">
+                          <p>Type: CNAME</p>
+                          <p>Name: @ (or {project.slug})</p>
+                          <p className="truncate text-primary font-bold">Value: shelbyhost.xyz</p>
+                        </div>
+                      </div>
+                      <button 
+                        onClick={() => verifyDomain(project.slug, project.domain!.domain)}
+                        className="w-full rounded bg-primary/10 py-1.5 text-xs font-extrabold text-primary transition hover:bg-primary/20"
+                      >
+                        Verify Now
+                      </button>
+                    </div>
+                  )}
+                  <p className="mt-2 font-mono text-xs text-muted-foreground">KV Path → {project.domain.kvKey}</p>
                 </div>
               ) : (
                 <p className="text-sm text-muted-foreground">No domains configured. The default URL <span className="font-mono text-primary">{publicUrl}</span> is always available.</p>
@@ -280,11 +323,11 @@ function ProjectDetail() {
   );
 }
 
-function Panel({ title, icon: Icon, children }: { title: string; icon: typeof RefreshCcw; children: React.ReactNode }) {
+function Panel({ title, icon: Icon, children }: { title: string; icon: any; children: React.ReactNode }) {
   return <div className="rounded-lg border border-border bg-card p-5"><div className="mb-4 flex items-center gap-3"><Icon className="h-5 w-5 text-primary" /><h2 className="text-lg font-bold text-foreground">{title}</h2></div>{children}</div>;
 }
 
-function Stat({ icon: Icon, label, value, accent }: { icon: typeof Rocket; label: string; value: string; accent?: "success" | "warning" }) {
+function Stat({ icon: Icon, label, value, accent }: { icon: any; label: string; value: string; accent?: "success" | "warning" }) {
   return (
     <div className="rounded-lg border border-border bg-card p-5">
       <div className="flex items-center justify-between"><p className="text-sm font-medium text-muted-foreground">{label}</p><Icon className={`h-4 w-4 ${accent === "success" ? "text-success" : accent === "warning" ? "text-warning" : "text-primary"}`} /></div>

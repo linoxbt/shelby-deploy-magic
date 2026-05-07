@@ -15,7 +15,7 @@ const queryClient = new QueryClient()
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <PrivyProvider
-      appId={import.meta.env.VITE_PRIVY_APP_ID || "cmo9b1zc5003l0djoptpbd205"}
+      appId={import.meta.env.VITE_PRIVY_APP_ID || "cmouon1wz00sg0clayumgd2ls"}
       config={{
         loginMethods: ['email', 'wallet', 'google', 'github'],
         appearance: {

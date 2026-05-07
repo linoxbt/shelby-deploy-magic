@@ -85,6 +85,7 @@ interface ShelbyHostContextValue {
   deleteProject: (projectId: string) => Promise<boolean>;
   updateProject: (slug: string, updates: Partial<Project>, trigger?: DeploymentTrigger) => Promise<boolean>;
   registerDomain: (slug: string, domain: string) => Promise<boolean>;
+  verifyDomain: (slug: string, domain: string) => Promise<boolean>;
   connectWallet: (chain: Chain, address: string, provider: string) => Promise<WalletConnection | null>;
   connectGithub: (slug: string, githubData: Project["github"]) => Promise<boolean>;
   triggerGithubDeploy: (slug: string) => Promise<boolean>;
@@ -185,14 +186,13 @@ export function ShelbyHostProvider({ children }: { children: React.ReactNode }) 
   const [loading, setLoading] = useState(true);
   const [uploadProgress, setUploadProgress] = useState<number | null>(null);
   const [wallet, setWallet] = useState<WalletConnection | undefined>();
-  const { user, authenticated, linkGithub: privyLinkGithub } = usePrivy();
+  const { user, authenticated, ready, linkGithub: privyLinkGithub } = usePrivy();
 
   const fetchProjects = async () => {
     try {
-      setLoading(true);
       if (!authenticated || !user) {
         setProjects([]);
-        setLoading(false);
+        setWallet(undefined);
         return;
       }
 
@@ -247,8 +247,8 @@ export function ShelbyHostProvider({ children }: { children: React.ReactNode }) 
           status: d.status as DeploymentStatus,
           trigger: d.trigger as DeploymentTrigger,
           timestamp: d.created_at,
-          version_url: d.version_url,
-          content_hash: d.content_hash,
+          versionUrl: d.version_url,
+          hash: d.content_hash,
           message: d.message,
         })).sort((a: any, b: any) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()),
       }));
@@ -262,8 +262,10 @@ export function ShelbyHostProvider({ children }: { children: React.ReactNode }) 
   };
 
   useEffect(() => {
-    fetchProjects();
-  }, [authenticated, user]);
+    if (ready) {
+      fetchProjects();
+    }
+  }, [authenticated, user, ready]);
 
   const value = useMemo(() => {
     const createProject = async (projectData: Partial<Project>) => {
@@ -469,6 +471,29 @@ export function ShelbyHostProvider({ children }: { children: React.ReactNode }) 
         } catch (error: any) {
           console.error("Domain error:", error);
           toast.error("Failed to register domain");
+          return false;
+        }
+      },
+      verifyDomain: async (slug: string, domain: string) => {
+        try {
+          toast.info(`Verifying DNS for ${domain}…`);
+          const { data, error } = await supabase.functions.invoke("verify-domain", {
+            body: { slug, domain }
+          });
+
+          if (error) throw error;
+          
+          if (data?.verified) {
+            toast.success("Domain verified!");
+            await fetchProjects();
+            return true;
+          } else {
+            toast.error(data?.message || "Verification failed. Check your DNS records.");
+            return false;
+          }
+        } catch (error: any) {
+          console.error("Verification error:", error);
+          toast.error("Domain verification failed");
           return false;
         }
       },

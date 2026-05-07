@@ -1,7 +1,8 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { AlertTriangle, ArrowRight, CheckCircle2, Copy, FileCode2, Github, Globe2, Loader2, UploadCloud, X } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
+import { usePrivy } from "@privy-io/react-auth";
 import { Aptos, AptosConfig, Network } from "@aptos-labs/ts-sdk";
 import { AppShell, formatBytes } from "../components/shelbyhost/AppShell";
 import { useShelbyHost, type FileEntry, type Project, type BuildCheckResult } from "../context/ShelbyHostContext";
@@ -12,27 +13,47 @@ export const Route = createFileRoute("/deploy")({
   component: Deploy,
 });
 
-const deploymentSteps = ["Checking build output...", "Uploading to Shelby nodes...", "Registering Aptos content hash...", "Writing domain KV route...", "Deployment complete!"];
+const deploymentSteps = ["Preparing files...", "Uploading to Shelby nodes...", "Paying deployment fee (0.1 USDT)...", "Registering on Aptos...", "Finalizing setup..."];
 const REGISTRY_ADDRESS = "0xc36c2abd4d6a6fd5d3c5823588d15c9ac5ae90a2357c3ce3083a98ce2184e4af";
+const USDT_COIN_TYPE = "0x1b18363a9f1fe5e6ebf247daba5cc1c18052bb232efdc4c50f556053922d98e1::shelby_coin::ShelbyUSDT";
+const DEPLOY_FEE = 10000; // 0.1 USDT (assuming 8 decimals for Aptos USDT, adjust if needed)
+const TREASURY_ADDRESS = "0xecf2ae74968ad5c25d281e8befeae00e4bee222a9f1b4b2ccbda6a846016bfff"; // Your wallet address
 
 function Deploy() {
-  const { addProject, generateHash, generateSlug, checkBuildOutput, wallet, fetchGithubRepos, uploadProgress } = useShelbyHost();
+  const { addProject, loading, generateHash, generateSlug, checkBuildOutput, wallet, fetchGithubRepos, uploadProgress } = useShelbyHost();
+  const { authenticated, ready } = usePrivy();
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    if (ready && !authenticated) {
+      navigate({ to: "/" });
+    }
+  }, [ready, authenticated, navigate]);
+
   const aptosAddress = useAptosAddress();
   const [name, setName] = useState("my-dapp");
   const [description, setDescription] = useState("Static frontend deployed through ShelbyHost.");
   const [framework, setFramework] = useState("vite");
   const [buildOutput, setBuildOutput] = useState("dist");
-  const [files, setFiles] = useState<FileEntry[]>([
-    { name: "dist/index.html", size: 18420, type: "HTML", path: "/dist/index.html" },
-    { name: "dist/assets/main.js", size: 224800, type: "JS", path: "/dist/assets/main.js" },
-    { name: "dist/assets/style.css", size: 32800, type: "CSS", path: "/dist/assets/style.css" },
-  ]);
+  const [files, setFiles] = useState<FileEntry[]>([]);
   const [repos, setRepos] = useState<any[]>([]);
   const [fetchingRepos, setFetchingRepos] = useState(false);
   const [selectedRepo, setSelectedRepo] = useState<any>(null);
   const [activeStep, setActiveStep] = useState(0);
   const [deployed, setDeployed] = useState<Project | null>(null);
   const [copied, setCopied] = useState(false);
+
+  if (!ready || loading) {
+    return (
+      <AppShell>
+        <div className="flex min-h-[60vh] items-center justify-center">
+          <Loader2 className="h-10 w-10 animate-spin text-primary" />
+        </div>
+      </AppShell>
+    );
+  }
+
+  if (!authenticated) return null;
   const slug = useMemo(() => generateSlug(name), [generateSlug, name]);
   const size = files.reduce((sum, file) => sum + file.size, 0);
   const buildCheck = checkBuildOutput(files, buildOutput);
@@ -47,26 +68,43 @@ function Deploy() {
       setActiveStep(1);
       const hash = await generateHash(files);
       
-      setActiveStep(2);
       const signAndSubmit = getAptosSignAndSubmit();
-      if (signAndSubmit && aptosAddress) {
-        const response = await signAndSubmit({
-          sender: aptosAddress,
-          data: {
-            function: `${REGISTRY_ADDRESS}::registry::register_project`,
-            typeArguments: [],
-            functionArguments: [name, hash]
-          }
-        });
-        
-        const aptos = new Aptos(new AptosConfig({ network: Network.TESTNET }));
-        await aptos.waitForTransaction({ transactionHash: response.hash });
-      } else {
+      if (!signAndSubmit || !aptosAddress) {
         toast.error("Wallet not fully connected.");
         return;
       }
+
+      // Step 2: Pay Deployment Fee (0.1 Shelby USDT)
+      setActiveStep(2);
+      toast.info("Paying 0.1 Shelby USDT deployment fee...");
+      const feeResponse = await signAndSubmit({
+        sender: aptosAddress,
+        data: {
+          function: "0x1::coin::transfer",
+          typeArguments: [USDT_COIN_TYPE],
+          functionArguments: [TREASURY_ADDRESS, DEPLOY_FEE],
+        },
+      });
       
+      const aptos = new Aptos(new AptosConfig({ network: Network.TESTNET }));
+      await aptos.waitForTransaction({ transactionHash: feeResponse.hash });
+      toast.success("Payment confirmed!");
+
+      // Step 3: Register Aptos content hash
       setActiveStep(3);
+      toast.info("Registering content hash on Aptos Registry...");
+      const regResponse = await signAndSubmit({
+        sender: aptosAddress,
+        data: {
+          function: `${REGISTRY_ADDRESS}::registry::register_project`,
+          typeArguments: [],
+          functionArguments: [name, hash]
+        }
+      });
+      
+      await aptos.waitForTransaction({ transactionHash: regResponse.hash });
+      
+      setActiveStep(4);
       const project = await addProject({ 
         name, 
         slug, 
@@ -234,6 +272,20 @@ function Deploy() {
             </div>
           )}
           {deployed && <div className="mt-6 rounded-lg border border-primary/50 bg-primary/10 p-5 shadow-glow"><h3 className="text-xl font-extrabold text-foreground">Deployment ready.</h3><div className="mt-4 flex items-center gap-2 rounded-md border border-border bg-background p-3"><span className="min-w-0 flex-1 truncate font-mono text-sm text-primary">{deployed.latestVersionUrl}</span><button onClick={copyUrl} className="text-primary"><Copy className="h-4 w-4" /></button></div><p className="mt-3 font-mono text-xs text-muted-foreground">Aptos hash: {deployed.hash.slice(0, 8)}...{deployed.hash.slice(-4)}</p><div className="mt-5 flex gap-3"><a href={deployed.latestVersionUrl} className="rounded-md bg-primary px-4 py-2 text-sm font-bold text-primary-foreground">Visit Site</a><Link to="/dashboard" className="rounded-md border border-border px-4 py-2 text-sm font-bold text-foreground">View Dashboard</Link></div>{copied && <p className="mt-3 text-sm font-semibold text-success">✓ Copied!</p>}</div>}
+
+          <div className="mt-8 border-t border-border pt-6">
+            <div className="flex items-center justify-between text-xs text-muted-foreground">
+              <span>Public Registry</span>
+              <span className="font-mono text-primary">{REGISTRY_ADDRESS.slice(0, 6)}...{REGISTRY_ADDRESS.slice(-4)}</span>
+            </div>
+            <div className="mt-2 flex items-center justify-between text-xs text-muted-foreground">
+              <span>Platform Fee</span>
+              <span className="font-bold text-foreground">0.1 Shelby USDT</span>
+            </div>
+            <p className="mt-4 text-[10px] leading-relaxed text-muted-foreground">
+              Fees are sent to the treasury to support decentralized hosting infrastructure.
+            </p>
+          </div>
         </aside>
       </div>
     </AppShell>

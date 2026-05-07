@@ -3,6 +3,7 @@ import { ArrowRight, BookOpen, CloudUpload, GitBranch, Github, Globe2, MessageCi
 import { useState } from "react";
 import { AptosWalletButton } from "../components/shelbyhost/AptosWallet";
 import { LogoMark } from "../components/shelbyhost/AppShell";
+import { usePrivy } from "@privy-io/react-auth";
 import heroImage from "../assets/editorial-deploy-studio.jpg";
 
 export const Route = createFileRoute("/")({
@@ -24,6 +25,7 @@ const features = [
 ];
 
 function Index() {
+  const { login, authenticated } = usePrivy();
   const [menuOpen, setMenuOpen] = useState(false);
   const menuLinks = [
     { label: "Docs", icon: BookOpen, href: "#" },
@@ -52,13 +54,21 @@ function Index() {
           <nav className="hidden items-center gap-7 text-sm font-extrabold uppercase text-foreground sm:flex">
             <a href="#features" className="transition hover:opacity-70">Features</a>
             <a href="#workflow" className="transition hover:opacity-70">Workflow</a>
-            <Link to="/dashboard" className="transition hover:opacity-70">Dashboard</Link>
+            {authenticated ? (
+              <Link to="/dashboard" className="transition hover:opacity-70">Dashboard</Link>
+            ) : (
+              <button onClick={() => login()} className="transition hover:opacity-70">Login</button>
+            )}
             <AptosWalletButton />
           </nav>
           <div className="sm:hidden"><AptosWalletButton compact /></div>
           </div>
           <nav className="mt-5 grid grid-cols-2 gap-2 text-sm font-bold sm:hidden">
-            <Link to="/dashboard" className="rounded-md border border-foreground/20 bg-card/65 px-3 py-2 text-center text-foreground backdrop-blur transition hover:border-primary">Dashboard</Link>
+            {authenticated ? (
+              <Link to="/dashboard" className="rounded-md border border-foreground/20 bg-card/65 px-3 py-2 text-center text-foreground backdrop-blur transition hover:border-primary">Dashboard</Link>
+            ) : (
+              <button onClick={() => login()} className="rounded-md border border-foreground/20 bg-card/65 px-3 py-2 text-center text-foreground backdrop-blur transition hover:border-primary">Login</button>
+            )}
             <Link to="/deploy" className="rounded-md bg-primary px-3 py-2 text-center text-primary-foreground transition hover:bg-primary-hover">Deploy</Link>
           </nav>
         </header>
@@ -75,12 +85,20 @@ function Index() {
             A professional deployment workflow for Shelby: previews, Git automation, custom domains, instant rollbacks, and Aptos-backed content hashes.
           </p>
           <div className="mt-9 flex flex-col justify-center gap-3 sm:flex-row">
-            <Link to="/deploy" className="inline-flex items-center justify-center gap-2 rounded-md bg-primary px-6 py-4 text-sm font-extrabold text-primary-foreground shadow-glow transition hover:bg-primary-hover focus:outline-none focus:ring-2 focus:ring-ring">
-              Deploy Now <ArrowRight className="h-4 w-4" />
-            </Link>
-            <Link to="/dashboard" className="inline-flex items-center justify-center rounded-md border border-foreground/20 bg-card/65 px-6 py-4 text-sm font-extrabold text-foreground backdrop-blur transition hover:border-primary hover:text-primary">
-              View Dashboard
-            </Link>
+            {authenticated ? (
+              <Link to="/deploy" className="inline-flex items-center justify-center gap-2 rounded-md bg-primary px-6 py-4 text-sm font-extrabold text-primary-foreground shadow-glow transition hover:bg-primary-hover focus:outline-none focus:ring-2 focus:ring-ring">
+                Deploy Now <ArrowRight className="h-4 w-4" />
+              </Link>
+            ) : (
+              <button onClick={() => login()} className="inline-flex items-center justify-center gap-2 rounded-md bg-primary px-6 py-4 text-sm font-extrabold text-primary-foreground shadow-glow transition hover:bg-primary-hover focus:outline-none focus:ring-2 focus:ring-ring">
+                Start Deploying <ArrowRight className="h-4 w-4" />
+              </button>
+            )}
+            {authenticated && (
+              <Link to="/dashboard" className="inline-flex items-center justify-center rounded-md border border-foreground/20 bg-card/65 px-6 py-4 text-sm font-extrabold text-foreground backdrop-blur transition hover:border-primary hover:text-primary">
+                View Dashboard
+              </Link>
+            )}
           </div>
           </div>
         </div>

@@ -1,5 +1,5 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
-import { Github, Plus, Server, ShieldCheck, UploadCloud, Wallet, Zap } from "lucide-react";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { Github, Loader2, Plus, Server, ShieldCheck, UploadCloud, Wallet, Zap } from "lucide-react";
 import { useEffect, useState } from "react";
 import { usePrivy } from "@privy-io/react-auth";
 import { AppShell, formatBytes, StatusBadge } from "../components/shelbyhost/AppShell";
@@ -44,17 +44,25 @@ interface GithubReposResponse {
 }
 
 function Dashboard() {
-  const { projects, wallet, connectWallet, connectGithub, fetchGithubRepos, linkGithub } = useShelbyHost();
-  const { user } = usePrivy();
+  const { projects, loading, wallet, connectWallet, connectGithub, fetchGithubRepos, linkGithub } = useShelbyHost();
+  const { user, authenticated, ready } = usePrivy();
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    if (ready && !authenticated) {
+      navigate({ to: "/" });
+    }
+  }, [ready, authenticated, navigate]);
+
   const [githubAccount, setGithubAccount] = useState<GithubAccount | null>(null);
 
   useEffect(() => {
-    const github = user?.linkedAccounts.find(acc => acc.type === 'github_oauth') as any;
+    const github = user?.linkedAccounts.find((acc) => acc.type === "github_oauth") as any;
     if (github) {
       setGithubAccount({
         login: github.username || github.name || "User",
-        avatar_url: null, // Privy might not provide this directly in the account object
-        html_url: null
+        avatar_url: null,
+        html_url: null,
       });
     } else {
       setGithubAccount(null);
@@ -64,6 +72,47 @@ function Dashboard() {
   const [repos, setRepos] = useState<GithubRepo[]>([]);
   const [repoStatus, setRepoStatus] = useState("Connect GitHub to fetch your repositories.");
   const [selectedRepo, setSelectedRepo] = useState<GithubRepo | null>(null);
+
+  useEffect(() => {
+    if (!authenticated) return;
+    const loadData = async () => {
+      try {
+        const data = await fetchGithubRepos();
+        if (data && data.length > 0) {
+          setRepos(
+            data.map((r: any) => ({
+              id: r.id,
+              name: r.name,
+              fullName: r.full_name,
+              owner: r.owner.login,
+              private: r.private,
+              defaultBranch: r.default_branch,
+              htmlUrl: r.html_url,
+              pushedAt: r.pushed_at,
+              language: r.language,
+            }))
+          );
+          setRepoStatus(`${data.length} repositories fetched from GitHub.`);
+        }
+      } catch (error) {
+        console.error("Dashboard repo fetch error:", error);
+      }
+    };
+    loadData();
+  }, [fetchGithubRepos, authenticated]);
+
+  if (!ready || loading) {
+    return (
+      <AppShell>
+        <div className="flex min-h-[60vh] items-center justify-center">
+          <Loader2 className="h-10 w-10 animate-spin text-primary" />
+        </div>
+      </AppShell>
+    );
+  }
+
+  if (!authenticated) return null;
+
   const totalSize = projects.reduce((sum, project) => sum + project.size, 0);
   const latestDeployments = projects
     .flatMap((project) =>
