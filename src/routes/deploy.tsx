@@ -49,11 +49,16 @@ const deploymentSteps = [
   "Registering on Aptos...",
   "Finalizing setup...",
 ];
-const REGISTRY_ADDRESS = "0xc36c2abd4d6a6fd5d3c5823588d15c9ac5ae90a2357c3ce3083a98ce2184e4af";
+const REGISTRY_ADDRESS =
+  import.meta.env.VITE_REGISTRY_ADDRESS ||
+  "0xc36c2abd4d6a6fd5d3c5823588d15c9ac5ae90a2357c3ce3083a98ce2184e4af";
 const USDT_COIN_TYPE =
+  import.meta.env.VITE_USDT_COIN_TYPE ||
   "0x1b18363a9f1fe5e6ebf247daba5cc1c18052bb232efdc4c50f556053922d98e1::shelby_coin::ShelbyUSDT";
-const DEPLOY_FEE = 10000; // 0.1 USDT (assuming 8 decimals for Aptos USDT, adjust if needed)
-const TREASURY_ADDRESS = "0xecf2ae74968ad5c25d281e8befeae00e4bee222a9f1b4b2ccbda6a846016bfff"; // Your wallet address
+const DEPLOY_FEE = 10000;
+const TREASURY_ADDRESS =
+  import.meta.env.VITE_TREASURY_ADDRESS ||
+  "0xecf2ae74968ad5c25d281e8befeae00e4bee222a9f1b4b2ccbda6a846016bfff";
 
 function Deploy() {
   const {
