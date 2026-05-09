@@ -10,6 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as SettingsRouteImport } from './routes/settings'
+import { Route as DocsRouteImport } from './routes/docs'
 import { Route as DeployRouteImport } from './routes/deploy'
 import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as IndexRouteImport } from './routes/index'
@@ -18,6 +19,11 @@ import { Route as ProjectSlugRouteImport } from './routes/project.$slug'
 const SettingsRoute = SettingsRouteImport.update({
   id: '/settings',
   path: '/settings',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DocsRoute = DocsRouteImport.update({
+  id: '/docs',
+  path: '/docs',
   getParentRoute: () => rootRouteImport,
 } as any)
 const DeployRoute = DeployRouteImport.update({
@@ -45,6 +51,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/dashboard': typeof DashboardRoute
   '/deploy': typeof DeployRoute
+  '/docs': typeof DocsRoute
   '/settings': typeof SettingsRoute
   '/project/$slug': typeof ProjectSlugRoute
 }
@@ -52,6 +59,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/dashboard': typeof DashboardRoute
   '/deploy': typeof DeployRoute
+  '/docs': typeof DocsRoute
   '/settings': typeof SettingsRoute
   '/project/$slug': typeof ProjectSlugRoute
 }
@@ -60,19 +68,27 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/dashboard': typeof DashboardRoute
   '/deploy': typeof DeployRoute
+  '/docs': typeof DocsRoute
   '/settings': typeof SettingsRoute
   '/project/$slug': typeof ProjectSlugRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/dashboard' | '/deploy' | '/settings' | '/project/$slug'
+  fullPaths:
+    | '/'
+    | '/dashboard'
+    | '/deploy'
+    | '/docs'
+    | '/settings'
+    | '/project/$slug'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/dashboard' | '/deploy' | '/settings' | '/project/$slug'
+  to: '/' | '/dashboard' | '/deploy' | '/docs' | '/settings' | '/project/$slug'
   id:
     | '__root__'
     | '/'
     | '/dashboard'
     | '/deploy'
+    | '/docs'
     | '/settings'
     | '/project/$slug'
   fileRoutesById: FileRoutesById
@@ -81,6 +97,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   DashboardRoute: typeof DashboardRoute
   DeployRoute: typeof DeployRoute
+  DocsRoute: typeof DocsRoute
   SettingsRoute: typeof SettingsRoute
   ProjectSlugRoute: typeof ProjectSlugRoute
 }
@@ -92,6 +109,13 @@ declare module '@tanstack/react-router' {
       path: '/settings'
       fullPath: '/settings'
       preLoaderRoute: typeof SettingsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/docs': {
+      id: '/docs'
+      path: '/docs'
+      fullPath: '/docs'
+      preLoaderRoute: typeof DocsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/deploy': {
@@ -129,6 +153,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   DashboardRoute: DashboardRoute,
   DeployRoute: DeployRoute,
+  DocsRoute: DocsRoute,
   SettingsRoute: SettingsRoute,
   ProjectSlugRoute: ProjectSlugRoute,
 }
