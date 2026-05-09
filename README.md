@@ -1,4 +1,4 @@
-# 🚀 ShelbyHost - Decentralized Frontend Hosting
+# ShelbyHost - Decentralized Frontend Hosting
 
 ShelbyHost is a next-generation deployment platform designed for the decentralized web. Built on top of the **Shelby Protocol** and secured by the **Aptos Blockchain**, ShelbyHost provides developers with a professional, immutable, and censorship resistant workflow for hosting static frontends.
 
