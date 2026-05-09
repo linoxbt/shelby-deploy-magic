@@ -1,5 +1,5 @@
 import { Link, useLocation } from "@tanstack/react-router";
-import { FolderGit2, Gauge, LayoutDashboard, Settings, UploadCloud } from "lucide-react";
+import { BookOpen, FolderGit2, Gauge, LayoutDashboard, Settings, UploadCloud } from "lucide-react";
 import { AptosWalletButton } from "./AptosWallet";
 import { useShelbyHost } from "../../context/ShelbyHostContext";
 
@@ -7,6 +7,7 @@ const navItems = [
   { to: "/dashboard", label: "Overview", icon: LayoutDashboard },
   { to: "/dashboard", label: "Projects", icon: Gauge },
   { to: "/deploy", label: "Deploy", icon: UploadCloud },
+  { to: "/docs", label: "Docs", icon: BookOpen },
   { to: "/settings", label: "Settings", icon: Settings },
 ] as const;
 
