@@ -40,11 +40,16 @@ export const prepareShelbyUpload = createServerFn({ method: "POST" })
       shelbyConfigured = true;
       try {
         // Dynamic import keeps the SDK out of the Worker bundle when unused.
-        const { generateMerkleRoot, generateCommitments } = await import(
-          "@shelby-protocol/sdk/node"
+        const {
+          generateCommitments,
+          createDefaultErasureCodingProvider,
+        } = await import("@shelby-protocol/sdk/node");
+        const provider = await createDefaultErasureCodingProvider();
+        const commitments = await generateCommitments(
+          provider,
+          new Uint8Array(buf),
         );
-        const commitments = await generateCommitments(new Uint8Array(buf));
-        merkleRoot = await generateMerkleRoot(commitments);
+        merkleRoot = commitments.blob_merkle_root;
       } catch (err) {
         console.error("Shelby SDK commitments failed:", err);
       }
