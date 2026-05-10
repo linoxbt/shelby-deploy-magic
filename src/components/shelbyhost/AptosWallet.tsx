@@ -1,7 +1,6 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, createContext, useContext } from "react";
 import { ChevronDown, Wallet, LogOut, Copy, Check } from "lucide-react";
-import { useWallet } from "@aptos-labs/wallet-adapter-react";
-import { Network } from "@aptos-labs/ts-sdk";
+import { usePrivy, useWallets } from "@privy-io/react-auth";
 import { toast } from "sonner";
 
 // Privy uses EVM by default but supports Aptos.
@@ -39,67 +38,121 @@ export function useAptosAddress() {
 }
 
 export function AptosProvider({ children }: { children: React.ReactNode }) {
-  const { account, connected, network, signAndSubmitTransaction } = useWallet();
-  const address = account?.address?.toString();
+  const { user, authenticated, ready } = usePrivy();
+  const { wallets } = useWallets();
 
-  // Enforce testnet end-to-end. If the user is connected to a different
-  // network, warn them and treat the wallet as unusable for deploys.
+  // Find the first Aptos wallet if available
+  const aptosWallet = wallets.find(
+    (w) =>
+      w.walletClientType === "petra" ||
+      w.walletClientType === "martian" ||
+      w.walletClientType.toLowerCase().includes("aptos"),
+  );
+
+  // Use Privy's linked Aptos address, or the detected wallet address, or fallback to window.aptos if available
+  const [injectedAddress, setInjectedAddress] = useState<string | undefined>();
+
   useEffect(() => {
-    if (!connected || !network) return;
-    const name = (network.name || "").toLowerCase();
-    if (name && name !== Network.TESTNET) {
-      toast.error(
-        `ShelbyHost runs on Aptos Testnet. Please switch your wallet from ${network.name} to Testnet.`,
-      );
-    }
-  }, [connected, network]);
-
-  useEffect(() => {
-    const onTestnet =
-      !network || (network.name || "").toLowerCase() === Network.TESTNET;
-    setCachedAddress(connected && address && onTestnet ? address : undefined);
-
-    if (connected && onTestnet) {
-      setCachedSignAndSubmit(async (tx: any) => {
-        const payload = tx?.data ?? tx;
-        const result = await signAndSubmitTransaction({
-          data: payload,
-        } as any);
-        if (!(result as any)?.hash) {
-          throw new Error("Transaction failed: no hash returned from wallet.");
+    const checkInjected = async () => {
+      // @ts-ignore
+      if (window.aptos) {
+        try {
+          // @ts-ignore
+          const account = await window.aptos.account();
+          if (account?.address) setInjectedAddress(account.address);
+        } catch (e) {
+          // Might not be connected yet
         }
-        return result;
-      });
-    } else {
-      setCachedSignAndSubmit(undefined);
+      }
+    };
+    checkInjected();
+  }, []);
+
+  const address = (user as any)?.aptos?.address || aptosWallet?.address || injectedAddress;
+
+  useEffect(() => {
+    if (ready) {
+      setCachedAddress(authenticated || !!injectedAddress ? address : undefined);
+
+      // Prefer injected window.aptos (Petra, Martian, etc.) for signing
+      // since the Privy Aptos wallet adapter path is more complex.
+      if (injectedAddress) {
+        setCachedSignAndSubmit(async (tx: any) => {
+          // @ts-ignore
+          if (!window.aptos)
+            throw new Error("Aptos wallet extension not found. Please install Petra or Martian.");
+          // @ts-ignore
+          const result = await window.aptos.signAndSubmitTransaction(tx.data ?? tx);
+          if (!result?.hash) throw new Error("Transaction failed: no hash returned from wallet.");
+          return result;
+        });
+      } else if (aptosWallet) {
+        // Privy embedded wallet path
+        setCachedSignAndSubmit(async (tx: any) => {
+          // @ts-ignore
+          const provider = (await aptosWallet.getProvider()) as any;
+          if (!provider?.signAndSubmitTransaction) {
+            throw new Error("Connected wallet does not support Aptos signing.");
+          }
+          const result = await provider.signAndSubmitTransaction(tx.data ?? tx);
+          if (!result?.hash) throw new Error("Transaction failed: no hash returned from wallet.");
+          return result;
+        });
+      } else {
+        // No wallet connected — clear sign function
+        setCachedSignAndSubmit(undefined);
+      }
     }
-  }, [connected, address, network, signAndSubmitTransaction]);
+  }, [ready, authenticated, address, aptosWallet, injectedAddress]);
 
   return <>{children}</>;
 }
 
 export function AptosWalletButton({ compact = false }: { compact?: boolean }) {
-  const { connect, disconnect, connected, account, wallets, network } = useWallet();
+  const { login, logout, authenticated, user, ready } = usePrivy();
+  const { wallets } = useWallets();
   const [open, setOpen] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [injectedAddress, setInjectedAddress] = useState<string | undefined>();
 
-  const address = account?.address?.toString();
+  useEffect(() => {
+    const checkInjected = async () => {
+      // @ts-ignore
+      if (window.aptos) {
+        try {
+          // @ts-ignore
+          const account = await window.aptos.account();
+          if (account?.address) setInjectedAddress(account.address);
+        } catch (e) {
+          // Silently fail if wallet check fails
+        }
+      }
+    };
+    checkInjected();
+  }, []);
+
+  const aptosWallet = wallets.find((w) => w.walletClientType.toLowerCase().includes("aptos"));
+  const address = (user as any)?.aptos?.address || aptosWallet?.address || injectedAddress;
   const displayAddress = address ? `${address.slice(0, 6)}...${address.slice(-4)}` : "";
-  const onTestnet =
-    !network || (network.name || "").toLowerCase() === Network.TESTNET;
 
   const handleConnect = async () => {
-    try {
-      const petra = wallets?.find((w) => (w.name || "").toLowerCase() === "petra");
-      if (!petra) {
-        toast.error("Petra wallet not detected. Install it from petra.app");
-        return;
+    // If we detect window.aptos but Privy hasn't linked it, we can try to use it directly
+    // @ts-ignore
+    if (window.aptos && !authenticated) {
+      try {
+        // @ts-ignore
+        const account = await window.aptos.connect();
+        if (account?.address) {
+          setInjectedAddress(account.address);
+          setCachedAddress(account.address);
+          toast.success("Aptos wallet connected via extension");
+          return;
+        }
+      } catch (e) {
+        console.error("Injected connect error:", e);
       }
-      await connect(petra.name);
-      toast.success("Connected to Petra (Aptos Testnet)");
-    } catch (e: any) {
-      toast.error(e?.message || "Failed to connect Petra");
     }
+    login();
   };
 
   const copyAddress = async () => {
@@ -109,24 +162,33 @@ export function AptosWalletButton({ compact = false }: { compact?: boolean }) {
     setTimeout(() => setCopied(false), 2000);
   };
 
-  const handleDisconnect = async () => {
-    try {
-      await disconnect();
-    } catch {
-      /* ignore */
+  const handleDisconnect = () => {
+    if (authenticated) {
+      logout();
     }
+    setInjectedAddress(undefined);
     setCachedAddress(undefined);
     setOpen(false);
   };
 
-  if (!connected) {
+  if (!ready)
+    return (
+      <button
+        disabled
+        className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md border border-border bg-card px-3 py-2 text-sm font-bold text-muted-foreground opacity-50"
+      >
+        <Wallet className="h-4 w-4" /> Loading...
+      </button>
+    );
+
+  if (!authenticated && !injectedAddress) {
     return (
       <button
         onClick={handleConnect}
         className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md border border-border bg-primary px-3 py-2 text-sm font-bold text-primary-foreground shadow-glow transition hover:bg-primary-hover"
       >
         <Wallet className="h-4 w-4" />
-        Connect Petra
+        Connect Wallet
       </button>
     );
   }
@@ -137,9 +199,7 @@ export function AptosWalletButton({ compact = false }: { compact?: boolean }) {
         onClick={() => setOpen(!open)}
         className="flex items-center gap-2 rounded-full border border-border bg-background/50 px-3 py-1.5 text-xs font-bold text-foreground hover:border-primary"
       >
-        <div
-          className={`h-2 w-2 rounded-full shadow-glow ${onTestnet ? "bg-success" : "bg-destructive"}`}
-        />
+        <div className="h-2 w-2 rounded-full bg-success shadow-glow" />
         {displayAddress}
       </button>
     );
@@ -157,7 +217,7 @@ export function AptosWalletButton({ compact = false }: { compact?: boolean }) {
           </div>
           <div className="text-left">
             <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider">
-              {onTestnet ? "Aptos Testnet" : `Wrong Network: ${network?.name}`}
+              Connected {injectedAddress && !authenticated ? "Extension" : "Privy"}
             </p>
             <p className="text-sm font-mono font-bold text-foreground">{displayAddress}</p>
           </div>

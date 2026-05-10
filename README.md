@@ -1,4 +1,4 @@
-# ShelbyHost - Decentralized Frontend Hosting
+# 🚀 ShelbyHost - Decentralized Frontend Hosting
 
 ShelbyHost is a next-generation deployment platform designed for the decentralized web. Built on top of the **Shelby Protocol** and secured by the **Aptos Blockchain**, ShelbyHost provides developers with a professional, immutable, and censorship resistant workflow for hosting static frontends.
 
@@ -64,50 +64,3 @@ ShelbyHost is open-source software. Build the future of the decentralized web wi
 
 **deploy once. live forever.**  
 [shelbyhost.xyz](https://shelbyhost.xyz)
-
----
-
-## 🧰 Build commands
-
-ShelbyHost ships two distinct production builds. Picking the wrong one is the
-most common cause of "deploys fail on Vercel but work locally".
-
-| Script             | When to use                                      | What it does                                                            |
-| ------------------ | ------------------------------------------------ | ----------------------------------------------------------------------- |
-| `npm run dev`      | Local development                                | Vite dev server with HMR on `:8080`.                                    |
-| `npm run build:dev`| Preview / staging deploys, GitHub PR previews    | `vite build --mode development` — keeps source maps, dev env vars.      |
-| `npm run build`    | Production deploys (`main` branch, custom domain)| `tsc && vite build` — type-checks then builds an optimised bundle.      |
-| `npm run preview`  | Smoke-test a production build locally            | Serves `dist/` via Vite preview.                                        |
-| `npm run lint`     | CI / pre-commit                                  | ESLint over the project.                                                |
-
-### Rules of thumb
-
-- **Production / `main` / custom domain** → always `npm run build`.
-- **Preview environments** (e.g. Vercel preview deployments, internal staging)
-  → `npm run build:dev`. This keeps env vars prefixed with `MODE=development`
-  consistent with what the dev server sees.
-- **Never** use `npm run build:dev` for the production deployment — type errors
-  are skipped and the bundle is larger.
-
-### CI guardrail
-
-`scripts/check-required-scripts.mjs` runs in CI (`.github/workflows/ci.yml`) and
-fails the pipeline if any of `dev`, `build`, `build:dev`, `preview`, or `lint`
-are missing from `package.json`. This is what prevents the "Script not found
-'build:dev'" class of failure from reaching production.
-
----
-
-## 🧪 Why a deploy might be failing
-
-If a Vercel build fails:
-
-1. **Check the missing-script guard** — `node scripts/check-required-scripts.mjs`
-   locally. CI runs this first and prints a clear list.
-2. **Type errors** only surface in `npm run build` (production). `build:dev`
-   skips `tsc`. If Vercel uses `build` and local uses `build:dev`, type errors
-   only show up in CI.
-3. **Environment variables** must be set in the Vercel project settings —
-   `VITE_*` vars are needed at build time. Server secrets (Supabase service
-   role, Shelby API key) are runtime-only and live in Lovable Cloud.
-4. **Routing 404s on refresh** are handled by `vercel.json` rewrites.
