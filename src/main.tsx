@@ -9,10 +9,7 @@ import { Toaster } from "sonner";
 import { PrivyProvider } from "@privy-io/react-auth";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { AptosWalletAdapterProvider } from "@aptos-labs/wallet-adapter-react";
-import { PetraWallet } from "petra-plugin-wallet-adapter";
 import { Network } from "@aptos-labs/ts-sdk";
-
-const aptosWallets = [new PetraWallet()];
 
 const router = getRouter();
 const queryClient = new QueryClient();
@@ -32,7 +29,7 @@ createRoot(document.getElementById("root")!).render(
     >
       <QueryClientProvider client={queryClient}>
         <AptosWalletAdapterProvider
-          plugins={aptosWallets as any}
+          optInWallets={["Petra"]}
           autoConnect={true}
           dappConfig={{ network: Network.TESTNET }}
           onError={(err) => console.error("Aptos wallet error:", err)}
