@@ -8,6 +8,8 @@ import { AptosProvider } from "./components/shelbyhost/AptosWallet";
 import { Toaster } from "sonner";
 import { PrivyProvider } from "@privy-io/react-auth";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { AptosWalletAdapterProvider } from "@aptos-labs/wallet-adapter-react";
+import { Network } from "@aptos-labs/ts-sdk";
 
 const router = getRouter();
 const queryClient = new QueryClient();
@@ -26,12 +28,19 @@ createRoot(document.getElementById("root")!).render(
       }}
     >
       <QueryClientProvider client={queryClient}>
-        <AptosProvider>
-          <ShelbyHostProvider>
-            <RouterProvider router={router} />
-            <Toaster position="top-center" richColors />
-          </ShelbyHostProvider>
-        </AptosProvider>
+        <AptosWalletAdapterProvider
+          optInWallets={["Petra"]}
+          autoConnect={true}
+          dappConfig={{ network: Network.TESTNET }}
+          onError={(err) => console.error("Aptos wallet error:", err)}
+        >
+          <AptosProvider>
+            <ShelbyHostProvider>
+              <RouterProvider router={router} />
+              <Toaster position="top-center" richColors />
+            </ShelbyHostProvider>
+          </AptosProvider>
+        </AptosWalletAdapterProvider>
       </QueryClientProvider>
     </PrivyProvider>
   </StrictMode>,
