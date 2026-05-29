@@ -91,6 +91,8 @@ USDT_COIN_TYPE=
 VITE_USDT_COIN_TYPE=
 DEPLOY_FEE=10000
 APTOS_NETWORK=testnet
+APTOS_API_KEY=
+APTOS_FULLNODE_URL=https://api.testnet.aptoslabs.com/v1
 
 GITHUB_WEBHOOK_SECRET=
 GITHUB_TOKEN_ENCRYPTION_KEY=
@@ -117,16 +119,34 @@ SHELBY_CUSTOM_DOMAIN_TARGET=cname.vercel-dns.com
 Optional Shelby storage mirroring:
 
 ```bash
-SHELBY_STORAGE_ENABLED=false
+SHELBY_STORAGE_ENABLED=true
 SHELBY_STORAGE_REQUIRED=false
 SHELBY_NETWORK=testnet
 SHELBY_API_KEY=
 SHELBY_PRIVATE_KEY=
+SHELBY_RPC_URL=https://api.testnet.shelby.xyz/shelby
+SHELBY_APTOS_FULLNODE_URL=https://api.testnet.aptoslabs.com/v1
+SHELBY_INDEXER_URL=https://api.testnet.aptoslabs.com/v1/graphql
+SHELBY_BLOB_INDEXER_URL=https://api.testnet.aptoslabs.com/nocode/v1/public/alias/shelby/testnet/v1/graphql
 SHELBY_BLOB_TTL_DAYS=365
 SHELBY_ORDERLESS=false
+SHELBY_MAX_DEPLOY_FILES=2000
+SHELBY_MAX_DEPLOY_BYTES=104857600
+SHELBY_MAX_DEPLOY_FILE_BYTES=52428800
 ```
 
-`SHELBY_PRIVATE_KEY` must be a funded Aptos Ed25519 account that can pay gas and ShelbyUSD storage costs. If `SHELBY_STORAGE_REQUIRED=true`, deployments fail instead of falling back to Supabase when Shelby upload fails.
+For your current Testnet setup, configure these in Vercel project environment variables, not in git:
+
+```bash
+SHELBY_NETWORK=testnet
+SHELBY_API_KEY=<your Testnet API key>
+SHELBY_PRIVATE_KEY=<your ed25519 private key>
+APTOS_NETWORK=testnet
+APTOS_API_KEY=<your Testnet API key>
+APTOS_FULLNODE_URL=https://api.testnet.aptoslabs.com/v1
+```
+
+`SHELBY_PRIVATE_KEY` must be a funded Aptos Ed25519 account that can pay gas and ShelbyUSD storage costs. The key is server-side only. If `SHELBY_STORAGE_REQUIRED=true`, deployments fail instead of falling back to Supabase when Shelby upload fails.
 
 ### DNS and Vercel Domains
 
@@ -159,13 +179,15 @@ That migration also adds payment/registry hashes, per-project GitHub deploy toke
 
 ### GitHub App Automation
 
-Create a GitHub App with repository permissions for `Contents: Read and write`, `Actions: Read and write`, and `Secrets: Read and write` if available in the GitHub App permissions UI. Set the app setup URL to a ShelbyHost page where the user can finish connecting a project, for example `https://shelbyhost.xyz/dashboard`.
+Create a GitHub App with repository permissions for `Contents: Read and write`, `Actions: Read and write`, `Secrets: Read and write`, and `Workflows: Read and write` if available in the GitHub App permissions UI. Set the app setup URL to a ShelbyHost page where the user can finish connecting a project, for example `https://shelbyhost.xyz/dashboard`.
 
 After installing the app on a repo, GitHub redirects with `installation_id`. In project settings, choose the repo, paste or keep that installation ID, and click **Auto-configure**. The API exchanges the installation ID for an installation token, writes `SHELBYHOST_DEPLOY_TOKEN` as a repo Actions secret, commits `.github/workflows/shelbyhost-deploy.yml`, and records the connection in Supabase.
 
 ### Product Scope
 
 The current product supports static websites and frontend apps that produce an `index.html` output folder. The generated GitHub workflow handles common Node package managers and output folders (`dist`, `build`, `out`, `public`, or root static files).
+
+GitHub builds succeed or fail in GitHub Actions. ShelbyHost writes queued deployment rows for push/dispatch events, then the generated workflow uploads the built files, mirrors them to Shelby when configured, and finalizes the deployment through the ShelbyHost API.
 
 It is not full Vercel parity yet. It does not execute builds inside ShelbyHost infrastructure, stream build logs into the app, run SSR/serverless/edge functions, create preview deployments per pull request, manage per-project environment variables, or support Vercel's full framework preset matrix.
 

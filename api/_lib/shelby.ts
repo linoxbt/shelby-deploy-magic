@@ -37,6 +37,21 @@ function shelbyRpcBaseUrl() {
     : "https://api.testnet.shelby.xyz/shelby";
 }
 
+function aptosNodeUrl() {
+  if (process.env.SHELBY_APTOS_FULLNODE_URL) return process.env.SHELBY_APTOS_FULLNODE_URL;
+  if (process.env.APTOS_FULLNODE_URL) return process.env.APTOS_FULLNODE_URL;
+  return shelbyNetwork() === Network.SHELBYNET
+    ? "https://api.shelbynet.shelby.xyz/v1"
+    : "https://api.testnet.aptoslabs.com/v1";
+}
+
+function aptosIndexerUrl() {
+  if (process.env.SHELBY_INDEXER_URL) return process.env.SHELBY_INDEXER_URL;
+  return shelbyNetwork() === Network.SHELBYNET
+    ? "https://api.shelbynet.shelby.xyz/v1/graphql"
+    : "https://api.testnet.aptoslabs.com/v1/graphql";
+}
+
 function encodeBlobName(blobName: string) {
   return blobName
     .split("/")
@@ -68,6 +83,8 @@ export function shelbyStatus() {
     required: shelbyStorageRequired(),
     network: shelbyNetwork(),
     rpcUrl: shelbyRpcBaseUrl(),
+    aptosNodeUrl: aptosNodeUrl(),
+    aptosIndexerUrl: aptosIndexerUrl(),
   };
 }
 
@@ -78,6 +95,26 @@ function shelbyClient() {
   return new ShelbyNodeClient({
     network: shelbyNetwork(),
     apiKey: process.env.SHELBY_API_KEY,
+    aptos: {
+      network: shelbyNetwork(),
+      fullnode: aptosNodeUrl(),
+      indexer: aptosIndexerUrl(),
+      clientConfig: {
+        API_KEY: process.env.SHELBY_API_KEY,
+      },
+    },
+    rpc: {
+      baseUrl: shelbyRpcBaseUrl(),
+      apiKey: process.env.SHELBY_API_KEY,
+    },
+    indexer: {
+      baseUrl:
+        process.env.SHELBY_BLOB_INDEXER_URL ||
+        (shelbyNetwork() === Network.SHELBYNET
+          ? "https://api.shelbynet.aptoslabs.com/nocode/v1/public/alias/shelby/shelbynet/v1/graphql"
+          : "https://api.testnet.aptoslabs.com/nocode/v1/public/alias/shelby/testnet/v1/graphql"),
+      apiKey: process.env.SHELBY_API_KEY,
+    },
     orderless: process.env.SHELBY_ORDERLESS === "true",
   });
 }

@@ -1,6 +1,6 @@
 import { requireProjectDeployAuth } from "../_lib/deploy-token";
 import { errorResponse, methodNotAllowed, readJson } from "../_lib/http";
-import { assertDeployable } from "../_lib/normalize";
+import { assertDeployable, normalizeContentHash } from "../_lib/normalize";
 import { mirrorDeploymentToShelby } from "../_lib/shelby";
 import { getSupabaseAdmin, projectUrl, versionUrl } from "../_lib/supabase";
 
@@ -20,15 +20,16 @@ export default async function handler(req: any, res: any) {
     const body = await readJson<FinalizePayload>(req);
     if (!body.slug) throw new Error("Project slug is required");
     if (!body.hash) throw new Error("Deployment hash is required");
+    const hash = normalizeContentHash(body.hash);
 
     const { project } = await requireProjectDeployAuth(req, body.slug);
     const files = assertDeployable(body.files || [], body.buildOutput || "dist");
     const totalSize = files.reduce((sum, file) => sum + (file.size || 0), 0);
-    const url = versionUrl(body.hash);
+    const url = versionUrl(hash);
     const supabase = getSupabaseAdmin();
     const storage = await mirrorDeploymentToShelby({
       supabase,
-      hash: body.hash,
+      hash,
       files,
       buildOutput: body.buildOutput || project.build_output,
     });
@@ -36,7 +37,7 @@ export default async function handler(req: any, res: any) {
     const { error: projectError } = await supabase
       .from("shelby_projects")
       .update({
-        content_hash: body.hash,
+        content_hash: hash,
         latest_version_url: url,
         storage_backend: storage.storageBackend,
         shelby_owner_address: storage.ownerAddress,
@@ -54,7 +55,7 @@ export default async function handler(req: any, res: any) {
 
     const { error: deploymentError } = await supabase.from("shelby_deployments").insert({
       project_id: project.id,
-      content_hash: body.hash,
+      content_hash: hash,
       version_url: url,
       storage_backend: storage.storageBackend,
       shelby_owner_address: storage.ownerAddress,
@@ -70,7 +71,7 @@ export default async function handler(req: any, res: any) {
 
     await supabase
       .from("shelby_domain_mappings")
-      .update({ content_hash: body.hash })
+      .update({ content_hash: hash })
       .eq("project_id", project.id);
 
     return res.status(200).json({

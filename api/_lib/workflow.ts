@@ -152,6 +152,10 @@ jobs:
           }).join("");
           const hash = crypto.createHash("sha256").update(combined).digest("hex");
           const publicFiles = files.map(({ absolutePath, ...file }) => file);
+          fs.writeFileSync(
+            path.join(outputDir, ".shelbyhost-manifest.json"),
+            JSON.stringify({ slug, hash, outputDir, files: publicFiles }, null, 2)
+          );
 
           async function api(pathname, body) {
             const response = await fetch(\`\${apiUrl}\${pathname}\`, {
@@ -172,9 +176,9 @@ jobs:
             const uploadPlan = await api("/api/github/upload-urls", {
               slug,
               hash,
-            buildOutput: outputDir,
-            files: publicFiles
-          });
+              buildOutput: outputDir,
+              files: publicFiles
+            });
 
             const fileByPath = new Map(files.map((file) => [file.path, file]));
             for (const upload of uploadPlan.files) {
@@ -200,7 +204,14 @@ jobs:
               commitSha: process.env.SHELBYHOST_COMMIT_SHA,
               files: publicFiles,
               buildOutput: outputDir,
-              message: process.env.SHELBYHOST_COMMIT_MESSAGE || "GitHub deployment"
+              message: process.env.SHELBYHOST_COMMIT_MESSAGE || "GitHub deployment",
+              source: {
+                workflow: process.env.GITHUB_WORKFLOW,
+                runId: process.env.GITHUB_RUN_ID,
+                runAttempt: process.env.GITHUB_RUN_ATTEMPT,
+                repository: process.env.GITHUB_REPOSITORY,
+                ref: process.env.GITHUB_REF_NAME
+              }
             });
 
             console.log(\`ShelbyHost deployment live: \${result.publicUrl || result.versionUrl}\`);

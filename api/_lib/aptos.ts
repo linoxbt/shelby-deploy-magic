@@ -22,8 +22,15 @@ function aptosFullnodeUrl() {
     : "https://fullnode.testnet.aptoslabs.com/v1";
 }
 
+function aptosHeaders() {
+  const apiKey = process.env.APTOS_API_KEY || process.env.SHELBY_API_KEY;
+  return apiKey ? { Authorization: `Bearer ${apiKey}` } : undefined;
+}
+
 async function fetchTransaction(hash: string): Promise<AptosTransaction> {
-  const response = await fetch(`${aptosFullnodeUrl()}/transactions/by_hash/${hash}`);
+  const response = await fetch(`${aptosFullnodeUrl()}/transactions/by_hash/${hash}`, {
+    headers: aptosHeaders(),
+  });
   if (!response.ok) {
     throw new Error(`Aptos transaction ${hash} was not found`);
   }

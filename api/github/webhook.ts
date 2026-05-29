@@ -64,6 +64,7 @@ export default async function handler(req: any, res: any) {
       status: "queued",
       trigger: "github-push",
       message: commitMessage.slice(0, 200),
+      storage_backend: "pending",
     });
 
     if (deploymentError) throw deploymentError;

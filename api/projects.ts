@@ -1,7 +1,7 @@
 import { requireAuth } from "./_lib/auth";
 import { verifyDeploymentTransactions } from "./_lib/aptos";
 import { errorResponse, methodNotAllowed, readJson } from "./_lib/http";
-import { assertDeployable, normalizeFiles, normalizeSlug } from "./_lib/normalize";
+import { assertDeployable, normalizeContentHash, normalizeSlug } from "./_lib/normalize";
 import { mirrorDeploymentToShelby } from "./_lib/shelby";
 import { getSupabaseAdmin, isSlugAvailable, versionUrl } from "./_lib/supabase";
 
@@ -60,6 +60,7 @@ export default async function handler(req: any, res: any) {
       const body = await readJson<ProjectPayload>(req);
       if (!body.name?.trim()) throw new Error("Project name is required");
       if (!body.hash) throw new Error("Deployment hash is required");
+      const hash = normalizeContentHash(body.hash);
 
       const buildOutput = body.buildOutput || "dist";
       const slug = normalizeSlug(body.slug || body.name);
@@ -69,19 +70,19 @@ export default async function handler(req: any, res: any) {
 
       const files = assertDeployable(body.files || [], buildOutput);
       const size = body.size ?? files.reduce((sum, file) => sum + (file.size || 0), 0);
-      const latestVersionUrl = versionUrl(body.hash);
+      const latestVersionUrl = versionUrl(hash);
 
       await verifyDeploymentTransactions({
         walletAddress: body.walletAddress,
         projectName: body.name.trim(),
-        contentHash: body.hash,
+        contentHash: hash,
         paymentTxHash: body.paymentTxHash,
         registryTxHash: body.registryTxHash,
       });
 
       const storage = await mirrorDeploymentToShelby({
         supabase,
-        hash: body.hash,
+        hash,
         files,
         buildOutput,
       });
@@ -99,7 +100,7 @@ export default async function handler(req: any, res: any) {
           wallet_address: body.walletAddress || null,
           framework: body.framework || "vite",
           build_output: buildOutput,
-          content_hash: body.hash,
+          content_hash: hash,
           latest_version_url: latestVersionUrl,
           storage_backend: storage.storageBackend,
           shelby_owner_address: storage.ownerAddress,
@@ -119,7 +120,7 @@ export default async function handler(req: any, res: any) {
 
       const { error: deploymentError } = await supabase.from("shelby_deployments").insert({
         project_id: project.id,
-        content_hash: body.hash,
+        content_hash: hash,
         version_url: latestVersionUrl,
         storage_backend: storage.storageBackend,
         shelby_owner_address: storage.ownerAddress,
