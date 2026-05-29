@@ -14,18 +14,22 @@ import {
   GitCommit,
   Globe2,
   HardDrive,
+  KeyRound,
   LayoutGrid,
   Loader2,
   RefreshCcw,
   Rocket,
   Settings as SettingsIcon,
   Shield,
+  Terminal,
   Trash2,
   Zap,
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { usePrivy } from "@privy-io/react-auth";
+import { apiRequest } from "../lib/api";
 import { AppShell, formatBytes, StatusBadge } from "../components/shelbyhost/AppShell";
+import { findFrameworkPreset, frameworkPresets } from "../lib/framework-presets";
 import {
   projectPublicUrl,
   useShelbyHost,
@@ -63,7 +67,7 @@ function ProjectDetail() {
     triggerGithubDeploy,
     verifyDomain,
   } = useShelbyHost();
-  const { authenticated, ready } = usePrivy();
+  const { authenticated, ready, getAccessToken } = usePrivy();
 
   useEffect(() => {
     if (ready && !authenticated) {
@@ -82,6 +86,14 @@ function ProjectDetail() {
   const [repoOwner, setRepoOwner] = useState(project?.github?.account ?? "");
   const [branch, setBranch] = useState(project?.github?.branch ?? "main");
   const [workflowSetup, setWorkflowSetup] = useState<GithubWorkflowSetup | null>(null);
+  const [envVars, setEnvVars] = useState<
+    Array<{ id: string; key: string; target: string; updated_at: string }>
+  >([]);
+  const [envKey, setEnvKey] = useState("");
+  const [envValue, setEnvValue] = useState("");
+  const [envTarget, setEnvTarget] = useState<"production" | "preview" | "development">(
+    "production",
+  );
   const [githubAppStatus, setGithubAppStatus] = useState<{
     configured: boolean;
     installUrl: string | null;
@@ -98,6 +110,50 @@ function ProjectDetail() {
     const installedId = params.get("installation_id");
     if (installedId) setInstallationId(installedId);
   }, [getGithubAppStatus]);
+
+  const loadEnvVars = async () => {
+    if (!project) return;
+    const data = await apiRequest<{ env: Array<{ id: string; key: string; target: string; updated_at: string }> }>(
+      `/api/projects/${project.slug}/env`,
+      {},
+      getAccessToken,
+    );
+    setEnvVars(data.env || []);
+  };
+
+  const saveEnvVar = async () => {
+    if (!project) return;
+    const data = await apiRequest<{ env: { id: string; key: string; target: string; updated_at: string } }>(
+      `/api/projects/${project.slug}/env`,
+      {
+        method: "POST",
+        body: { key: envKey, value: envValue, target: envTarget },
+      },
+      getAccessToken,
+    );
+    setEnvVars((current) => [
+      data.env,
+      ...current.filter((item) => !(item.key === data.env.key && item.target === data.env.target)),
+    ]);
+    setEnvKey("");
+    setEnvValue("");
+  };
+
+  const deleteEnvVar = async (id: string) => {
+    if (!project) return;
+    await apiRequest(
+      `/api/projects/${project.slug}/env`,
+      { method: "DELETE", body: { id } },
+      getAccessToken,
+    );
+    setEnvVars((current) => current.filter((item) => item.id !== id));
+  };
+
+  useEffect(() => {
+    if (tab === "settings" && project) {
+      void loadEnvVars().catch(() => undefined);
+    }
+  }, [tab, project?.id]);
 
   if (!ready || loading) {
     return (
@@ -136,6 +192,7 @@ function ProjectDetail() {
   const successRate = project.deployments.length
     ? Math.round((successCount / project.deployments.length) * 100)
     : 100;
+  const selectedFramework = findFrameworkPreset(framework);
 
   const copy = (val: string, key: string) => {
     navigator.clipboard.writeText(val);
@@ -156,6 +213,7 @@ function ProjectDetail() {
       repository,
       branch,
       workflowFile: ".github/workflows/shelbyhost-deploy.yml",
+      buildCommand: findFrameworkPreset(framework).buildCommand,
     });
     if (setup) setWorkflowSetup(setup);
   };
@@ -179,6 +237,7 @@ function ProjectDetail() {
       repository,
       branch,
       workflowFile: ".github/workflows/shelbyhost-deploy.yml",
+      buildCommand: findFrameworkPreset(framework).buildCommand,
     });
     if (setup) setWorkflowSetup(setup);
   };
@@ -396,16 +455,72 @@ function ProjectDetail() {
         )}
 
         {tab === "deployments" && (
-          <section className="mt-6 rounded-lg border border-border bg-card p-5">
-            <div className="mb-4 flex items-center justify-between">
-              <div>
-                <h2 className="text-lg font-bold text-foreground">Deployment history</h2>
-                <p className="text-xs text-muted-foreground">
-                  {successCount} succeeded · {failCount} failed
-                </p>
+          <section className="mt-6 grid gap-6">
+            <div className="rounded-lg border border-border bg-card p-5">
+              <div className="mb-4 flex items-center justify-between">
+                <div>
+                  <h2 className="text-lg font-bold text-foreground">Deployment history</h2>
+                  <p className="text-xs text-muted-foreground">
+                    {successCount} succeeded · {failCount} failed
+                  </p>
+                </div>
               </div>
+              <DeploymentList items={project.deployments} detailed />
             </div>
-            <DeploymentList items={project.deployments} detailed />
+
+            <div className="grid gap-6 lg:grid-cols-2">
+              <Panel title="PR previews" icon={GitBranch}>
+                <div className="space-y-3">
+                  {(project.previews || []).map((preview) => (
+                    <div
+                      key={preview.id}
+                      className="rounded-md border border-border bg-background/40 p-3"
+                    >
+                      <div className="flex items-center justify-between gap-3">
+                        <p className="min-w-0 truncate font-mono text-sm text-primary">
+                          {preview.previewUrl}
+                        </p>
+                        <StatusBadge status={preview.status as any} />
+                      </div>
+                      <p className="mt-2 text-xs text-muted-foreground">
+                        {preview.pullRequestNumber
+                          ? `PR #${preview.pullRequestNumber}`
+                          : preview.branch}{" "}
+                        · {preview.commitSha?.slice(0, 8) || preview.contentHash.slice(0, 8)}
+                      </p>
+                    </div>
+                  ))}
+                  {(project.previews || []).length === 0 && (
+                    <p className="text-sm text-muted-foreground">
+                      Pull request previews appear here after the generated GitHub workflow runs.
+                    </p>
+                  )}
+                </div>
+              </Panel>
+              <Panel title="Build logs" icon={Terminal}>
+                <div className="max-h-80 space-y-2 overflow-auto rounded-md border border-border bg-background/50 p-3">
+                  {(project.buildLogs || []).slice(0, 30).map((line) => (
+                    <p
+                      key={line.id}
+                      className={`font-mono text-xs ${
+                        line.level === "error" ? "text-destructive" : "text-muted-foreground"
+                      }`}
+                    >
+                      <span className="text-primary">
+                        {new Date(line.createdAt).toLocaleTimeString()}
+                      </span>{" "}
+                      {line.line}
+                    </p>
+                  ))}
+                  {(project.buildLogs || []).length === 0 && (
+                    <p className="text-sm text-muted-foreground">
+                      GitHub finalization logs appear after a workflow deploy. Native ShelbyHost
+                      streaming logs require the runner layer.
+                    </p>
+                  )}
+                </div>
+              </Panel>
+            </div>
           </section>
         )}
 
@@ -551,14 +666,34 @@ function ProjectDetail() {
         {tab === "settings" && (
           <div className="mt-6 grid gap-6 lg:grid-cols-2">
             <Panel title="Build & framework" icon={SettingsIcon}>
-              <label className="grid gap-2 text-sm font-semibold text-foreground">
-                Framework
-                <input
-                  value={framework}
-                  onChange={(e) => setFramework(e.target.value)}
-                  className="rounded-md border border-input bg-background px-3 py-2.5 text-foreground outline-none focus:border-primary"
-                />
-              </label>
+              <div className="grid gap-2 sm:grid-cols-2">
+                {frameworkPresets.map((preset) => (
+                  <button
+                    key={preset.id}
+                    type="button"
+                    onClick={() => {
+                      setFramework(preset.id);
+                      setBuildOutput(preset.output);
+                    }}
+                    className={`rounded-md border p-3 text-left transition ${
+                      framework === preset.id
+                        ? "border-primary bg-primary/10"
+                        : "border-border bg-background hover:border-primary/60"
+                    }`}
+                  >
+                    <span className="text-sm font-bold text-foreground">{preset.label}</span>
+                    <span className="mt-1 block text-xs text-muted-foreground">
+                      {preset.runtime.toUpperCase()} · {preset.output}
+                    </span>
+                  </button>
+                ))}
+              </div>
+              {selectedFramework.status === "runner-required" && (
+                <p className="mt-3 rounded-md border border-warning/30 bg-warning/10 p-3 text-xs text-muted-foreground">
+                  This preset is configured for GitHub builds, but native SSR/serverless/edge
+                  execution requires the ShelbyHost runner layer.
+                </p>
+              )}
               <label className="mt-3 grid gap-2 text-sm font-semibold text-foreground">
                 Build output
                 <input
@@ -573,6 +708,74 @@ function ProjectDetail() {
               >
                 Save
               </button>
+            </Panel>
+            <Panel title="Environment variables" icon={KeyRound}>
+              <div className="grid gap-3">
+                <label className="grid gap-2 text-sm font-semibold text-foreground">
+                  Key
+                  <input
+                    value={envKey}
+                    onChange={(e) => setEnvKey(e.target.value)}
+                    placeholder="API_URL"
+                    className="rounded-md border border-input bg-background px-3 py-2.5 font-mono text-foreground outline-none focus:border-primary"
+                  />
+                </label>
+                <label className="grid gap-2 text-sm font-semibold text-foreground">
+                  Value
+                  <input
+                    value={envValue}
+                    onChange={(e) => setEnvValue(e.target.value)}
+                    placeholder="Encrypted at rest"
+                    type="password"
+                    className="rounded-md border border-input bg-background px-3 py-2.5 text-foreground outline-none focus:border-primary"
+                  />
+                </label>
+                <label className="grid gap-2 text-sm font-semibold text-foreground">
+                  Target
+                  <select
+                    value={envTarget}
+                    onChange={(e) => setEnvTarget(e.target.value as any)}
+                    className="rounded-md border border-input bg-background px-3 py-2.5 text-foreground outline-none focus:border-primary"
+                  >
+                    <option value="production">Production</option>
+                    <option value="preview">Preview</option>
+                    <option value="development">Development</option>
+                  </select>
+                </label>
+                <button
+                  onClick={saveEnvVar}
+                  className="rounded-md bg-primary px-4 py-2.5 text-sm font-bold text-primary-foreground hover:bg-primary-hover"
+                >
+                  Save variable
+                </button>
+              </div>
+              <div className="mt-4 space-y-2">
+                {envVars.map((item) => (
+                  <div
+                    key={item.id}
+                    className="flex items-center justify-between gap-3 rounded-md border border-border bg-background/50 p-3"
+                  >
+                    <div className="min-w-0">
+                      <p className="truncate font-mono text-sm text-foreground">{item.key}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {item.target} · updated {new Date(item.updated_at).toLocaleString()}
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => deleteEnvVar(item.id)}
+                      className="text-xs font-bold text-destructive"
+                    >
+                      Delete
+                    </button>
+                  </div>
+                ))}
+                {envVars.length === 0 && (
+                  <p className="text-sm text-muted-foreground">
+                    No project variables yet. GitHub workflows load production and preview
+                    variables before the build command runs.
+                  </p>
+                )}
+              </div>
             </Panel>
             <Panel title="Git integration" icon={GitBranch}>
               <label className="grid gap-2 text-sm font-semibold text-foreground">

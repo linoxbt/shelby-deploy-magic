@@ -6,7 +6,13 @@ import { apiRequest } from "@/lib/api";
 
 export type ProjectStatus = "live" | "processing" | "failed";
 export type DeploymentStatus = "queued" | "succeeded" | "failed" | "pending" | "verified";
-export type DeploymentTrigger = "manual" | "settings" | "github-push" | "domain" | "hash";
+export type DeploymentTrigger =
+  | "manual"
+  | "settings"
+  | "github-push"
+  | "github-pr"
+  | "domain"
+  | "hash";
 export type Chain = "aptos" | "shelby";
 
 export interface FileEntry {
@@ -26,6 +32,30 @@ export interface DeploymentAttempt {
   versionUrl: string;
   hash: string;
   message?: string;
+  storageBackend?: string;
+  shelbyUploadError?: string | null;
+}
+
+export interface PreviewDeployment {
+  id: string;
+  previewUrl: string;
+  previewSlug?: string | null;
+  branch: string;
+  pullRequestNumber?: number | null;
+  commitSha?: string | null;
+  contentHash: string;
+  status: "queued" | "building" | "ready" | "failed";
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface BuildLogLine {
+  id: string;
+  deploymentId?: string | null;
+  stream: string;
+  line: string;
+  level: "info" | "warn" | "error";
+  createdAt: string;
 }
 
 export interface Project {
@@ -46,6 +76,11 @@ export interface Project {
   walletAddress?: string;
   paymentTxHash?: string;
   registryTxHash?: string;
+  storageBackend?: string;
+  shelbyOwnerAddress?: string | null;
+  shelbyUploadedAt?: string | null;
+  shelbyUploadError?: string | null;
+  shelbyManifest?: unknown[] | null;
   domain?: {
     domain: string;
     status: "active" | "pending" | "failed";
@@ -65,6 +100,8 @@ export interface Project {
     githubInstallationId?: string | null;
   };
   deployments: DeploymentAttempt[];
+  previews?: PreviewDeployment[];
+  buildLogs?: BuildLogLine[];
 }
 
 export interface GithubWorkflowSetup {
@@ -90,6 +127,9 @@ export interface WalletConnection {
   chain: Chain;
   provider: "petra" | "martian" | "fewcha" | "shelby-vault";
   address: string;
+  publicKey?: string | null;
+  privateKey?: string;
+  managed?: boolean;
   status: "connected" | "disconnected";
 }
 
@@ -119,17 +159,20 @@ interface ShelbyHostContextValue {
     address: string,
     provider: string,
   ) => Promise<WalletConnection | null>;
+  getWallet: (includePrivateKey?: boolean) => Promise<WalletConnection | null>;
+  disconnectWallet: (address: string) => Promise<boolean>;
   connectGithub: (
     slug: string,
-    githubData: Project["github"],
+    githubData: Project["github"] & { buildCommand?: string },
   ) => Promise<GithubConnectionSetup | null>;
+  disconnectGithub: () => Promise<boolean>;
   triggerGithubDeploy: (slug: string) => Promise<boolean>;
   getGithubWorkflow: (slug: string) => Promise<GithubWorkflowSetup | null>;
   rotateGithubDeployToken: (slug: string) => Promise<GithubWorkflowSetup | null>;
   getGithubAppStatus: () => Promise<GithubAppStatus | null>;
   setupGithubApp: (
     slug: string,
-    githubData: Project["github"] & { installationId?: string | number },
+    githubData: Project["github"] & { installationId?: string | number; buildCommand?: string },
   ) => Promise<GithubConnectionSetup | null>;
   fetchGithubRepos: () => Promise<any[]>;
   linkGithub: () => Promise<void>;
@@ -317,6 +360,11 @@ export function ShelbyHostProvider({ children }: { children: React.ReactNode }) 
         latestVersionUrl: projectPublicUrl(p.slug),
         chain: (p.chain || "aptos") as Chain,
         walletAddress: p.wallet_address,
+        storageBackend: p.storage_backend,
+        shelbyOwnerAddress: p.shelby_owner_address,
+        shelbyUploadedAt: p.shelby_uploaded_at,
+        shelbyUploadError: p.shelby_upload_error,
+        shelbyManifest: p.shelby_manifest,
         domain: p.shelby_domain_mappings?.[0]
           ? {
               domain: p.shelby_domain_mappings[0].domain,
@@ -349,9 +397,41 @@ export function ShelbyHostProvider({ children }: { children: React.ReactNode }) 
             versionUrl: d.version_url,
             hash: d.content_hash,
             message: d.message,
+            storageBackend: d.storage_backend,
+            shelbyUploadError: d.shelby_upload_error,
           }))
           .sort(
             (a: any, b: any) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime(),
+          ),
+        previews: (p.shelby_preview_deployments || [])
+          .map((preview: any) => ({
+            id: preview.id,
+            previewUrl: preview.preview_url,
+            previewSlug: preview.preview_slug,
+            branch: preview.branch,
+            pullRequestNumber: preview.pull_request_number,
+            commitSha: preview.commit_sha,
+            contentHash: preview.content_hash,
+            status: preview.status,
+            createdAt: preview.created_at,
+            updatedAt: preview.updated_at,
+          }))
+          .sort(
+            (a: any, b: any) =>
+              new Date(b.updatedAt || b.createdAt).getTime() -
+              new Date(a.updatedAt || a.createdAt).getTime(),
+          ),
+        buildLogs: (p.shelby_build_logs || [])
+          .map((line: any) => ({
+            id: line.id,
+            deploymentId: line.deployment_id,
+            stream: line.stream,
+            line: line.line,
+            level: line.level,
+            createdAt: line.created_at,
+          }))
+          .sort(
+            (a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
           ),
       }));
 
@@ -360,8 +440,10 @@ export function ShelbyHostProvider({ children }: { children: React.ReactNode }) 
         walletRow
           ? {
               chain: walletRow.chain,
-              provider: walletRow.wallet_provider,
+              provider: (walletRow.wallet_provider || walletRow.provider) as any,
               address: walletRow.address,
+              publicKey: walletRow.public_key || walletRow.publicKey,
+              managed: Boolean(walletRow.managed),
               status: walletRow.status,
             }
           : undefined,
@@ -586,8 +668,10 @@ export function ShelbyHostProvider({ children }: { children: React.ReactNode }) 
 
           const next: WalletConnection = {
             chain: data.chain as Chain,
-            provider: data.wallet_provider as any,
+            provider: (data.wallet_provider || data.provider) as any,
             address: data.address,
+            publicKey: data.public_key || data.publicKey,
+            managed: Boolean(data.managed),
             status: "connected",
           };
 
@@ -600,7 +684,45 @@ export function ShelbyHostProvider({ children }: { children: React.ReactNode }) 
           return null;
         }
       },
-      connectGithub: async (slug: string, githubData: Project["github"]) => {
+      getWallet: async (includePrivateKey = false) => {
+        try {
+          const { wallet: data } = await apiFetch<{ wallet: any }>(
+            `/api/wallets${includePrivateKey ? "?includePrivateKey=true" : ""}`,
+          );
+          if (!data) return null;
+          const next: WalletConnection = {
+            chain: data.chain as Chain,
+            provider: (data.wallet_provider || data.provider) as any,
+            address: data.address,
+            publicKey: data.public_key || data.publicKey,
+            privateKey: data.privateKey,
+            managed: Boolean(data.managed),
+            status: data.status,
+          };
+          setWallet(next);
+          return next;
+        } catch (error: any) {
+          toast.error(error.message || "Failed to load Aptos account");
+          return null;
+        }
+      },
+      disconnectWallet: async (address: string) => {
+        try {
+          await apiFetch(`/api/wallets?address=${encodeURIComponent(address)}`, {
+            method: "DELETE",
+          });
+          setWallet(undefined);
+          toast.success("Wallet disconnected");
+          return true;
+        } catch (error: any) {
+          toast.error(error.message || "Failed to disconnect wallet");
+          return false;
+        }
+      },
+      connectGithub: async (
+        slug: string,
+        githubData: Project["github"] & { buildCommand?: string },
+      ) => {
         try {
           const project = projects.find((p) => p.slug === slug);
           if (!project) return null;
@@ -613,6 +735,7 @@ export function ShelbyHostProvider({ children }: { children: React.ReactNode }) 
               repository: githubData?.repository ?? "",
               branch: githubData?.branch ?? "main",
               workflowFile: githubData?.workflowFile,
+              buildCommand: githubData?.buildCommand,
             }),
           });
           await fetchProjects();
@@ -634,7 +757,10 @@ export function ShelbyHostProvider({ children }: { children: React.ReactNode }) 
       },
       setupGithubApp: async (
         slug: string,
-        githubData: Project["github"] & { installationId?: string | number },
+        githubData: Project["github"] & {
+          installationId?: string | number;
+          buildCommand?: string;
+        },
       ) => {
         try {
           const project = projects.find((p) => p.slug === slug);
@@ -649,6 +775,7 @@ export function ShelbyHostProvider({ children }: { children: React.ReactNode }) 
               repository: githubData?.repository ?? "",
               branch: githubData?.branch ?? "main",
               workflowFile: githubData?.workflowFile,
+              buildCommand: githubData?.buildCommand,
               buildOutput: project.buildOutput ?? "dist",
             },
           });
@@ -699,10 +826,23 @@ export function ShelbyHostProvider({ children }: { children: React.ReactNode }) 
       },
       linkGithub: async () => {
         try {
-          await privyLinkGithub();
+          const hasGithub = user?.linkedAccounts?.some((acc: any) => acc.type === "github_oauth");
+          if (!hasGithub) await privyLinkGithub();
           await reauthorizeGithub({ provider: "github" });
+          await new Promise((resolve) => window.setTimeout(resolve, 400));
         } catch (error) {
           console.error("Privy GitHub link error:", error);
+          toast.error("GitHub authorization did not complete");
+        }
+      },
+      disconnectGithub: async () => {
+        try {
+          await apiFetch("/api/github/account", { method: "DELETE" });
+          toast.success("GitHub disconnected");
+          return true;
+        } catch (error: any) {
+          toast.error(error.message || "Failed to disconnect GitHub");
+          return false;
         }
       },
       fetchGithubRepos: async () => {
@@ -713,16 +853,26 @@ export function ShelbyHostProvider({ children }: { children: React.ReactNode }) 
 
         try {
           // Call the edge function proxy to avoid CORS + token exposure
-          const data = await apiFetch<any>("/api/github/repos");
-          if ((!data?.repos || data.repos.length === 0) && githubAccount) {
+          let data = await apiFetch<any>("/api/github/repos");
+          if (!data?.account) {
+            if (!githubAccount) {
+              await privyLinkGithub();
+            }
             toast.info("Authorize GitHub repository access to import repos.");
             await reauthorizeGithub({ provider: "github" });
-            const refreshed = await apiFetch<any>("/api/github/repos");
-            return refreshed?.repos ?? [];
+            await new Promise((resolve) => window.setTimeout(resolve, 400));
+            data = await apiFetch<any>("/api/github/repos");
+          }
+          if (!data?.account) {
+            toast.info("Connect GitHub to import repositories.");
+          }
+          if (data?.account && (!data?.repos || data.repos.length === 0)) {
+            toast.info("GitHub connected, but no owned repositories were returned.");
           }
           return data?.repos ?? [];
         } catch (err) {
           console.error("Failed to fetch GitHub repos:", err);
+          toast.error("Could not fetch GitHub repositories");
           return [];
         }
       },

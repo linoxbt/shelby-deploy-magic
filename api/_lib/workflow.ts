@@ -27,15 +27,22 @@ export function githubWorkflowYaml({
 on:
   push:
     branches: [${yamlQuote(branch)}]
+  pull_request:
+    branches: [${yamlQuote(branch)}]
   workflow_dispatch:
 
 permissions:
   contents: read
+  pull-requests: read
 
 env:
   SHELBYHOST_API_URL: ${yamlQuote(apiBaseUrl())}
   SHELBYHOST_PROJECT_SLUG: ${yamlQuote(slug)}
   SHELBYHOST_BUILD_OUTPUT: ${yamlQuote(buildOutput)}
+  SHELBYHOST_BUILD_COMMAND: ${yamlQuote(buildCommand)}
+  SHELBYHOST_PREVIEW: \${{ github.event_name == 'pull_request' && 'true' || 'false' }}
+  SHELBYHOST_PR_NUMBER: \${{ github.event.pull_request.number || '' }}
+  SHELBYHOST_BRANCH: \${{ github.head_ref || github.ref_name }}
 
 jobs:
   deploy:
@@ -63,11 +70,48 @@ jobs:
             echo "No package.json found; treating repository as static files."
           fi
 
+      - name: Load ShelbyHost environment
+        env:
+          SHELBYHOST_DEPLOY_TOKEN: \${{ secrets.${GITHUB_DEPLOY_SECRET_NAME} }}
+        run: |
+          node <<'NODE'
+          const fs = require("node:fs");
+
+          const apiUrl = process.env.SHELBYHOST_API_URL.replace(/\\/$/, "");
+          const slug = process.env.SHELBYHOST_PROJECT_SLUG;
+          const token = process.env.SHELBYHOST_DEPLOY_TOKEN;
+          const target = process.env.SHELBYHOST_PREVIEW === "true" ? "preview" : "production";
+
+          if (!token) throw new Error("Missing GitHub secret ${GITHUB_DEPLOY_SECRET_NAME}");
+
+          (async () => {
+            const response = await fetch(\`\${apiUrl}/api/github/env\`, {
+              method: "POST",
+              headers: {
+                authorization: \`Bearer \${token}\`,
+                "content-type": "application/json"
+              },
+              body: JSON.stringify({ slug, target })
+            });
+            if (!response.ok) {
+              throw new Error(\`Environment load failed: \${response.status} \${await response.text()}\`);
+            }
+            const { env } = await response.json();
+            for (const [key, value] of Object.entries(env || {})) {
+              fs.appendFileSync(process.env.GITHUB_ENV, \`\${key}<<SHELBYHOST_ENV\\n\${value}\\nSHELBYHOST_ENV\\n\`);
+            }
+            console.log(\`Loaded \${Object.keys(env || {}).length} ShelbyHost environment variables for \${target}.\`);
+          })().catch((error) => {
+            console.error(error);
+            process.exit(1);
+          });
+          NODE
+
       - name: Build
         run: |
           if [ -f package.json ]; then
             if node -e "process.exit((require('./package.json').scripts || {}).build ? 0 : 1)"; then
-              ${buildCommand}
+              $SHELBYHOST_BUILD_COMMAND
             else
               echo "No build script found; deploying static files."
             fi
@@ -204,13 +248,18 @@ jobs:
               commitSha: process.env.SHELBYHOST_COMMIT_SHA,
               files: publicFiles,
               buildOutput: outputDir,
+              preview: process.env.SHELBYHOST_PREVIEW === "true",
               message: process.env.SHELBYHOST_COMMIT_MESSAGE || "GitHub deployment",
               source: {
                 workflow: process.env.GITHUB_WORKFLOW,
                 runId: process.env.GITHUB_RUN_ID,
                 runAttempt: process.env.GITHUB_RUN_ATTEMPT,
                 repository: process.env.GITHUB_REPOSITORY,
-                ref: process.env.GITHUB_REF_NAME
+                ref: process.env.GITHUB_REF_NAME,
+                branch: process.env.SHELBYHOST_BRANCH,
+                pullRequestNumber: process.env.SHELBYHOST_PR_NUMBER
+                  ? Number(process.env.SHELBYHOST_PR_NUMBER)
+                  : undefined
               }
             });
 

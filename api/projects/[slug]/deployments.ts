@@ -9,7 +9,7 @@ type DeploymentPayload = {
   files: Array<{ name: string; size: number; type: string; path: string }>;
   buildOutput?: string;
   message?: string;
-  trigger?: "manual" | "settings" | "github-push" | "domain" | "hash";
+  trigger?: "manual" | "settings" | "github-push" | "github-pr" | "domain" | "hash";
 };
 
 export default async function handler(req: any, res: any) {

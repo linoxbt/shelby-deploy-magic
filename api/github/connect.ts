@@ -14,6 +14,7 @@ type ConnectPayload = {
   repository: string;
   branch?: string;
   workflowFile?: string;
+  buildCommand?: string;
 };
 
 export default async function handler(req: any, res: any) {
@@ -58,6 +59,7 @@ export default async function handler(req: any, res: any) {
       workflowYaml: githubWorkflowYaml({
         slug: project.slug,
         branch: body.branch || "main",
+        buildCommand: body.buildCommand,
         buildOutput: project.build_output,
       }),
     });

@@ -1,13 +1,12 @@
 import { Link, useLocation } from "@tanstack/react-router";
-import { FolderGit2, Gauge, LayoutDashboard, Settings, UploadCloud } from "lucide-react";
-import { AptosWalletButton } from "./AptosWallet";
+import { FileText, FolderGit2, LayoutDashboard, Settings, UploadCloud } from "lucide-react";
 import { useShelbyHost } from "../../context/ShelbyHostContext";
 
 const navItems = [
-  { to: "/dashboard", label: "Overview", icon: LayoutDashboard },
-  { to: "/dashboard", label: "Projects", icon: Gauge },
+  { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { to: "/deploy", label: "Deploy", icon: UploadCloud },
   { to: "/settings", label: "Settings", icon: Settings },
+  { to: "/grant", label: "Brief", icon: FileText },
 ] as const;
 
 export function ShelbyLogo({ compact = false }: { compact?: boolean }) {
@@ -51,7 +50,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             const Icon = item.icon;
             const active =
               location.pathname === item.to ||
-              (item.label === "Projects" && location.pathname.startsWith("/project"));
+              (item.label === "Dashboard" && location.pathname.startsWith("/project"));
             return (
               <Link
                 key={item.label}
@@ -69,32 +68,37 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <div className="flex h-9 w-9 items-center justify-center rounded-md bg-sidebar-foreground text-sidebar">
               <FolderGit2 className="h-4 w-4" />
             </div>
-            <div className="min-w-0 flex-1">
-              <p className="text-sm font-semibold text-sidebar-foreground">
-                {wallet ? `${wallet.chain.toUpperCase()} wallet` : "Builder wallet"}
-              </p>
-              <p className="truncate font-mono text-xs text-sidebar-foreground/60">
-                {wallet?.address ?? "Not connected"}
-              </p>
-            </div>
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-semibold text-sidebar-foreground">
+                {wallet ? `${wallet.managed ? "Managed" : wallet.chain.toUpperCase()} wallet` : "Builder wallet"}
+            </p>
+            <p className="truncate font-mono text-xs text-sidebar-foreground/60">
+                {wallet?.address ?? "Creating account..."}
+            </p>
           </div>
-          {!wallet && (
-            <Link
-              to="/deploy"
-              className="mt-3 w-full rounded-md bg-sidebar-foreground px-3 py-2 text-xs font-extrabold text-sidebar transition hover:opacity-90 text-center block"
-            >
-              Connect Aptos
-            </Link>
-          )}
         </div>
-      </aside>
+          <Link
+            to="/settings"
+            className="mt-3 block w-full rounded-md bg-sidebar-foreground px-3 py-2 text-center text-xs font-extrabold text-sidebar transition hover:opacity-90"
+          >
+            Account settings
+          </Link>
+      </div>
+    </aside>
       <main className="pb-20 lg:pl-64 lg:pb-0">
         <header className="sticky top-0 z-10 flex items-center justify-between border-b border-border bg-background/85 px-5 py-3 backdrop-blur lg:hidden">
           <LogoMark />
-          <AptosWalletButton compact />
+          <Link to="/settings" className="rounded-md border border-border px-3 py-2 text-xs font-bold">
+            Account
+          </Link>
         </header>
         <div className="hidden justify-end border-b border-border bg-background/70 px-8 py-3 backdrop-blur lg:flex">
-          <AptosWalletButton />
+          <Link
+            to="/settings"
+            className="rounded-md border border-border bg-card px-4 py-2 text-sm font-bold text-foreground transition hover:border-primary"
+          >
+            Profile & wallet
+          </Link>
         </div>
         {children}
       </main>

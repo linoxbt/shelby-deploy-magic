@@ -14,21 +14,17 @@ import {
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { usePrivy } from "@privy-io/react-auth";
-import { Aptos, AptosConfig, Network } from "@aptos-labs/ts-sdk";
+import { Account, Aptos, AptosConfig, Ed25519PrivateKey, Network } from "@aptos-labs/ts-sdk";
 import { AppShell, formatBytes } from "../components/shelbyhost/AppShell";
+import { findFrameworkPreset, frameworkPresets } from "../lib/framework-presets";
 import {
   useShelbyHost,
   type FileEntry,
   type Project,
-  type BuildCheckResult,
   projectPublicUrl,
   type GithubWorkflowSetup,
 } from "../context/ShelbyHostContext";
-import {
-  AptosWalletButton,
-  useAptosAddress,
-  getAptosSignAndSubmit,
-} from "../components/shelbyhost/AptosWallet";
+import { useAptosAddress, getAptosSignAndSubmit } from "../components/shelbyhost/AptosWallet";
 
 export const Route = createFileRoute("/deploy")({
   head: () => ({
@@ -70,6 +66,7 @@ function Deploy() {
     generateSlug,
     checkBuildOutput,
     wallet,
+    getWallet,
     fetchGithubRepos,
     uploadProgress,
     connectGithub,
@@ -112,6 +109,7 @@ function Deploy() {
   if (!authenticated) return null;
   const size = files.reduce((sum, file) => sum + file.size, 0);
   const buildCheck = checkBuildOutput(files, buildOutput);
+  const selectedPreset = findFrameworkPreset(framework);
 
   const deploy = async () => {
     setDeployed(null);
@@ -129,25 +127,37 @@ function Deploy() {
       }));
       const hash = await generateHash(deployFiles);
 
-      const signAndSubmit = getAptosSignAndSubmit();
-      if (!signAndSubmit || !aptosAddress) {
-        toast.error("Wallet not fully connected.");
-        return;
-      }
+      const extensionSigner = getAptosSignAndSubmit();
+      const aptos = new Aptos(new AptosConfig({ network: Network.TESTNET }));
+      const managedSigner = async (tx: any) => {
+        const accountData = await getWallet(true);
+        if (!accountData?.privateKey) {
+          throw new Error("Managed Aptos account is not available yet.");
+        }
+        const account = Account.fromPrivateKey({
+          privateKey: new Ed25519PrivateKey(accountData.privateKey),
+        });
+        const transaction = await aptos.transaction.build.simple({
+          sender: account.accountAddress,
+          data: tx.data ?? tx,
+        });
+        return aptos.signAndSubmitTransaction({ signer: account, transaction });
+      };
+      const signAndSubmit = extensionSigner || managedSigner;
+      const signerAddress = aptosAddress || wallet?.address;
+      if (!signerAddress) throw new Error("Aptos account is still being created.");
 
       // Step 2: Pay Deployment Fee (0.1 Shelby USDT)
       setActiveStep(2);
       toast.info("Paying 0.1 Shelby USDT deployment fee...");
       const feeResponse = await signAndSubmit({
-        sender: aptosAddress,
+          sender: signerAddress,
         data: {
           function: "0x1::coin::transfer",
           typeArguments: [USDT_COIN_TYPE],
           functionArguments: [TREASURY_ADDRESS, DEPLOY_FEE],
         },
       });
-
-      const aptos = new Aptos(new AptosConfig({ network: Network.TESTNET }));
       await aptos.waitForTransaction({ transactionHash: feeResponse.hash });
       toast.success("Payment confirmed!");
 
@@ -155,7 +165,7 @@ function Deploy() {
       setActiveStep(3);
       toast.info("Registering content hash on Aptos Registry...");
       const regResponse = await signAndSubmit({
-        sender: aptosAddress,
+        sender: signerAddress,
         data: {
           function: `${REGISTRY_ADDRESS}::registry::register_project`,
           typeArguments: [],
@@ -177,7 +187,7 @@ function Deploy() {
         framework,
         buildOutput,
         chain: "aptos",
-        walletAddress: aptosAddress || wallet?.address,
+        walletAddress: signerAddress,
         paymentTxHash: feeResponse.hash,
         registryTxHash: regResponse.hash,
       });
@@ -189,6 +199,7 @@ function Deploy() {
             repository: selectedRepo.name,
             branch: selectedRepo.default_branch,
             workflowFile: ".github/workflows/shelbyhost-deploy.yml",
+            buildCommand: selectedPreset.buildCommand,
           });
           if (setup) setWorkflowSetup(setup);
         }
@@ -455,15 +466,39 @@ function Deploy() {
                 className="rounded-md border border-input bg-background px-3 py-3 text-foreground outline-none transition focus:border-primary focus:ring-2 focus:ring-ring"
               />
             </label>
-            <div className="grid gap-3 sm:grid-cols-2">
-              <label className="grid gap-2 text-sm font-semibold text-foreground">
-                Framework
-                <input
-                  value={framework}
-                  onChange={(event) => setFramework(event.target.value)}
-                  className="rounded-md border border-input bg-background px-3 py-3 text-foreground outline-none transition focus:border-primary focus:ring-2 focus:ring-ring"
-                />
-              </label>
+            <div className="grid gap-3">
+              <div>
+                <p className="text-sm font-semibold text-foreground">Application preset</p>
+                <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                  {frameworkPresets.map((preset) => (
+                    <button
+                      key={preset.id}
+                      type="button"
+                      onClick={() => {
+                        setFramework(preset.id);
+                        setBuildOutput(preset.output);
+                      }}
+                      className={`rounded-md border p-3 text-left transition ${
+                        framework === preset.id
+                          ? "border-primary bg-primary/10"
+                          : "border-border bg-background hover:border-primary/60"
+                      }`}
+                    >
+                      <span className="text-sm font-bold text-foreground">{preset.label}</span>
+                      <span className="mt-1 block text-xs text-muted-foreground">
+                        {preset.runtime.toUpperCase()} · {preset.output}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+                {selectedPreset.status === "runner-required" && (
+                  <p className="mt-2 rounded-md border border-warning/30 bg-warning/10 p-3 text-xs text-muted-foreground">
+                    {selectedPreset.label} is configured as a preset. Native SSR/serverless/edge
+                    execution requires the ShelbyHost runner layer; current deploys publish static
+                    build artifacts.
+                  </p>
+                )}
+              </div>
               <label className="grid gap-2 text-sm font-semibold text-foreground">
                 Build output
                 <input
@@ -476,7 +511,12 @@ function Deploy() {
             <div className="rounded-md border border-border bg-secondary p-3 font-mono text-sm text-primary">
               Live URL: {slug}.shelbyhost.xyz
             </div>
-            <AptosWalletButton />
+            <div className="rounded-md border border-border bg-secondary p-3">
+              <p className="text-xs font-bold uppercase text-muted-foreground">Aptos account</p>
+              <p className="mt-1 truncate font-mono text-sm text-primary">
+                {wallet?.address || "Creating account..."}
+              </p>
+            </div>
             <button
               onClick={deploy}
               disabled={!buildCheck.valid || (!aptosAddress && !wallet?.address)}

@@ -1,18 +1,12 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import {
   ArrowRight,
-  BookOpen,
   CloudUpload,
   GitBranch,
   Github,
   Globe2,
-  MessageCircle,
-  Menu,
   Sparkles,
-  X,
 } from "lucide-react";
-import { useState } from "react";
-import { AptosWalletButton } from "../components/shelbyhost/AptosWallet";
 import { LogoMark } from "../components/shelbyhost/AppShell";
 import { usePrivy } from "@privy-io/react-auth";
 import heroImage from "../assets/editorial-deploy-studio.jpg";
@@ -56,14 +50,6 @@ const features = [
 
 function Index() {
   const { login, authenticated } = usePrivy();
-  const [menuOpen, setMenuOpen] = useState(false);
-  const menuLinks = [
-    { label: "Docs", icon: BookOpen, href: "#" },
-    { label: "GitHub", icon: Github, href: "https://github.com" },
-    { label: "Discord", icon: MessageCircle, href: "#" },
-    { label: "Features", icon: Sparkles, href: "#features" },
-    { label: "Workflow", icon: GitBranch, href: "#workflow" },
-  ];
   return (
     <main className="min-h-screen overflow-hidden bg-background text-foreground">
       <section className="shelby-surface relative min-h-[92vh] overflow-hidden text-foreground">
@@ -77,16 +63,7 @@ function Index() {
         <div className="absolute inset-0 bg-background/35" />
         <header className="relative z-10 mx-auto max-w-7xl px-5 py-6 sm:px-8">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <button
-                onClick={() => setMenuOpen(true)}
-                aria-label="Open menu"
-                className="grid h-10 w-10 place-items-center rounded-md border border-foreground/20 bg-card/65 text-foreground backdrop-blur transition hover:border-primary"
-              >
-                <Menu className="h-5 w-5" />
-              </button>
-              <LogoMark />
-            </div>
+            <LogoMark />
             <nav className="hidden items-center gap-7 text-sm font-extrabold uppercase text-foreground sm:flex">
               <a href="#features" className="transition hover:opacity-70">
                 Features
@@ -94,6 +71,9 @@ function Index() {
               <a href="#workflow" className="transition hover:opacity-70">
                 Workflow
               </a>
+              <Link to="/grant" className="transition hover:opacity-70">
+                Brief
+              </Link>
               {authenticated ? (
                 <Link to="/dashboard" className="transition hover:opacity-70">
                   Dashboard
@@ -103,11 +83,19 @@ function Index() {
                   Login
                 </button>
               )}
-              <AptosWalletButton />
             </nav>
-            <div className="sm:hidden">
-              <AptosWalletButton compact />
-            </div>
+            <Link
+              to={authenticated ? "/dashboard" : "/"}
+              onClick={(event) => {
+                if (!authenticated) {
+                  event.preventDefault();
+                  login();
+                }
+              }}
+              className="rounded-md bg-primary px-3 py-2 text-sm font-bold text-primary-foreground sm:hidden"
+            >
+              {authenticated ? "Dashboard" : "Login"}
+            </Link>
           </div>
           <nav className="mt-5 grid grid-cols-2 gap-2 text-sm font-bold sm:hidden">
             {authenticated ? (
@@ -235,65 +223,40 @@ function Index() {
         </div>
       </section>
 
+      <section className="border-y border-border bg-card px-5 py-16 sm:px-8">
+        <div className="mx-auto grid max-w-7xl gap-8 lg:grid-cols-[0.8fr_1.2fr]">
+          <div>
+            <p className="text-sm font-extrabold uppercase text-primary">Vercel parity roadmap</p>
+            <h2 className="mt-3 text-3xl font-extrabold text-foreground">
+              Static deployments are live now. Native compute is the next platform layer.
+            </h2>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2">
+            {[
+              "SSR runtime adapters",
+              "Serverless functions",
+              "Edge routing",
+              "Streaming build logs",
+              "PR previews",
+              "Project environment variables",
+            ].map((item) => (
+              <div key={item} className="rounded-md border border-border bg-background/50 p-4">
+                <p className="font-bold text-foreground">{item}</p>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Product surface prepared; runner infrastructure required.
+                </p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
       <footer className="border-t border-border bg-sidebar px-5 py-8 text-sm text-muted-foreground sm:px-8">
         <div className="mx-auto flex max-w-7xl flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <LogoMark />
           <p>powered by Shelby protocol</p>
         </div>
       </footer>
-
-      {menuOpen && (
-        <div className="fixed inset-0 z-50 flex">
-          <div
-            className="absolute inset-0 bg-background/80 backdrop-blur-sm"
-            onClick={() => setMenuOpen(false)}
-          />
-          <aside className="relative z-10 flex h-full w-72 flex-col border-r border-border bg-sidebar p-6 text-sidebar-foreground shadow-panel animate-in slide-in-from-left">
-            <div className="flex items-center justify-between">
-              <LogoMark />
-              <button
-                onClick={() => setMenuOpen(false)}
-                aria-label="Close menu"
-                className="grid h-9 w-9 place-items-center rounded-md border border-sidebar-foreground/15 hover:border-sidebar-foreground/40"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-            <nav className="mt-8 grid gap-1">
-              {menuLinks.map((item) => {
-                const Icon = item.icon;
-                return (
-                  <a
-                    key={item.label}
-                    href={item.href}
-                    onClick={() => setMenuOpen(false)}
-                    className="flex items-center gap-3 rounded-md px-3 py-2.5 text-sm font-bold text-sidebar-foreground/80 transition hover:bg-sidebar-foreground/10 hover:text-sidebar-foreground"
-                  >
-                    <Icon className="h-4 w-4" />
-                    {item.label}
-                  </a>
-                );
-              })}
-            </nav>
-            <div className="mt-auto grid gap-2 border-t border-sidebar-foreground/15 pt-5">
-              <Link
-                to="/dashboard"
-                onClick={() => setMenuOpen(false)}
-                className="rounded-md border border-sidebar-foreground/20 px-3 py-2.5 text-center text-sm font-bold text-sidebar-foreground transition hover:border-primary"
-              >
-                Dashboard
-              </Link>
-              <Link
-                to="/deploy"
-                onClick={() => setMenuOpen(false)}
-                className="rounded-md bg-primary px-3 py-2.5 text-center text-sm font-extrabold text-primary-foreground transition hover:bg-primary-hover"
-              >
-                Deploy
-              </Link>
-            </div>
-          </aside>
-        </div>
-      )}
     </main>
   );
 }

@@ -4,6 +4,7 @@ import { errorResponse, methodNotAllowed, readJson } from "./_lib/http";
 import { assertDeployable, normalizeContentHash, normalizeSlug } from "./_lib/normalize";
 import { mirrorDeploymentToShelby } from "./_lib/shelby";
 import { getSupabaseAdmin, isSlugAvailable, versionUrl } from "./_lib/supabase";
+import { ensureManagedAptosWallet, serializeWallet } from "./_lib/wallet";
 
 type ProjectPayload = {
   name: string;
@@ -35,7 +36,9 @@ export default async function handler(req: any, res: any) {
           *,
           shelby_deployments (*),
           shelby_domain_mappings (*),
-          shelby_github_connections (*)
+          shelby_github_connections (*),
+          shelby_preview_deployments (*),
+          shelby_build_logs (*)
         `,
         )
         .eq("owner_id", auth.userId)
@@ -43,17 +46,9 @@ export default async function handler(req: any, res: any) {
 
       if (error) throw error;
 
-      const { data: wallets, error: walletError } = await supabase
-        .from("shelby_wallet_connections")
-        .select("*")
-        .eq("owner_id", auth.userId)
-        .eq("status", "connected")
-        .order("updated_at", { ascending: false })
-        .limit(1);
+      const wallet = await ensureManagedAptosWallet(supabase, auth.userId);
 
-      if (walletError) throw walletError;
-
-      return res.status(200).json({ projects: data || [], wallet: wallets?.[0] || null });
+      return res.status(200).json({ projects: data || [], wallet: serializeWallet(wallet) });
     }
 
     if (req.method === "POST") {

@@ -1,7 +1,7 @@
 import { useEffect, useState, createContext, useContext } from "react";
-import { ChevronDown, Wallet, LogOut, Copy, Check } from "lucide-react";
+import { ChevronDown, Wallet, Copy, Check } from "lucide-react";
 import { usePrivy, useWallets } from "@privy-io/react-auth";
-import { toast } from "sonner";
+import { useShelbyHost } from "../../context/ShelbyHostContext";
 
 // Privy uses EVM by default but supports Aptos.
 // We'll map the Privy state to our ShelbyHost logic.
@@ -109,7 +109,8 @@ export function AptosProvider({ children }: { children: React.ReactNode }) {
 }
 
 export function AptosWalletButton({ compact = false }: { compact?: boolean }) {
-  const { login, logout, authenticated, user, ready } = usePrivy();
+  const { authenticated, user, ready } = usePrivy();
+  const { wallet } = useShelbyHost();
   const { wallets } = useWallets();
   const [open, setOpen] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -132,43 +133,15 @@ export function AptosWalletButton({ compact = false }: { compact?: boolean }) {
   }, []);
 
   const aptosWallet = wallets.find((w) => w.walletClientType.toLowerCase().includes("aptos"));
-  const address = (user as any)?.aptos?.address || aptosWallet?.address || injectedAddress;
+  const address =
+    (user as any)?.aptos?.address || aptosWallet?.address || injectedAddress || wallet?.address;
   const displayAddress = address ? `${address.slice(0, 6)}...${address.slice(-4)}` : "";
-
-  const handleConnect = async () => {
-    // If we detect window.aptos but Privy hasn't linked it, we can try to use it directly
-    // @ts-ignore
-    if (window.aptos && !authenticated) {
-      try {
-        // @ts-ignore
-        const account = await window.aptos.connect();
-        if (account?.address) {
-          setInjectedAddress(account.address);
-          setCachedAddress(account.address);
-          toast.success("Aptos wallet connected via extension");
-          return;
-        }
-      } catch (e) {
-        console.error("Injected connect error:", e);
-      }
-    }
-    login();
-  };
 
   const copyAddress = async () => {
     if (!address) return;
     await navigator.clipboard.writeText(address);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
-  };
-
-  const handleDisconnect = () => {
-    if (authenticated) {
-      logout();
-    }
-    setInjectedAddress(undefined);
-    setCachedAddress(undefined);
-    setOpen(false);
   };
 
   if (!ready)
@@ -183,13 +156,10 @@ export function AptosWalletButton({ compact = false }: { compact?: boolean }) {
 
   if (!authenticated && !injectedAddress) {
     return (
-      <button
-        onClick={handleConnect}
-        className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md border border-border bg-primary px-3 py-2 text-sm font-bold text-primary-foreground shadow-glow transition hover:bg-primary-hover"
-      >
+      <span className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md border border-border bg-card px-3 py-2 text-sm font-bold text-muted-foreground">
         <Wallet className="h-4 w-4" />
-        Connect Wallet
-      </button>
+        Account pending
+      </span>
     );
   }
 
@@ -200,7 +170,7 @@ export function AptosWalletButton({ compact = false }: { compact?: boolean }) {
         className="flex items-center gap-2 rounded-full border border-border bg-background/50 px-3 py-1.5 text-xs font-bold text-foreground hover:border-primary"
       >
         <div className="h-2 w-2 rounded-full bg-success shadow-glow" />
-        {displayAddress}
+        {displayAddress || "Account"}
       </button>
     );
   }
@@ -217,9 +187,11 @@ export function AptosWalletButton({ compact = false }: { compact?: boolean }) {
           </div>
           <div className="text-left">
             <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider">
-              Connected {injectedAddress && !authenticated ? "Extension" : "Privy"}
+              {wallet?.managed ? "Shelby Vault" : `Connected ${injectedAddress && !authenticated ? "Extension" : "Privy"}`}
             </p>
-            <p className="text-sm font-mono font-bold text-foreground">{displayAddress}</p>
+            <p className="font-mono text-sm font-bold text-foreground">
+              {displayAddress || "Account ready"}
+            </p>
           </div>
         </div>
         <ChevronDown
@@ -238,13 +210,6 @@ export function AptosWalletButton({ compact = false }: { compact?: boolean }) {
               Copy Address
             </div>
             {copied && <Check className="h-4 w-4 text-success" />}
-          </button>
-          <button
-            onClick={handleDisconnect}
-            className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm font-medium text-destructive hover:bg-destructive/10"
-          >
-            <LogOut className="h-4 w-4" />
-            Disconnect
           </button>
         </div>
       )}

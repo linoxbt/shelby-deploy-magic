@@ -17,11 +17,11 @@ createRoot(document.getElementById("root")!).render(
     <PrivyProvider
       appId={import.meta.env.VITE_PRIVY_APP_ID || "cmouon1wz00sg0clayumgd2ls"}
       config={{
-        loginMethods: ["email", "wallet", "google", "github"],
+        loginMethods: ["email", "google", "github"],
         appearance: {
           theme: "dark",
           accentColor: "#676FFF",
-          showWalletLoginFirst: true,
+          showWalletLoginFirst: false,
         },
       }}
     >

@@ -9,15 +9,25 @@ type GithubAccountPayload = {
 };
 
 export default async function handler(req: any, res: any) {
-  if (req.method !== "POST") return methodNotAllowed(res, ["POST"]);
-
   try {
     const auth = await requireAuth(req);
+    const supabase = getSupabaseAdmin();
+
+    if (req.method === "DELETE") {
+      const { error } = await supabase
+        .from("shelby_github_accounts")
+        .delete()
+        .eq("owner_id", auth.userId);
+      if (error) throw error;
+      return res.status(200).json({ ok: true });
+    }
+
+    if (req.method !== "POST") return methodNotAllowed(res, ["POST", "DELETE"]);
+
     const body = await readJson<GithubAccountPayload>(req);
     if (!body.accessToken) throw new Error("GitHub access token is required");
 
     const ghUser = await getGithubUser(body.accessToken);
-    const supabase = getSupabaseAdmin();
     const encrypted = encryptToken(body.accessToken);
     const tokenLastFour = body.accessToken.slice(-4);
 

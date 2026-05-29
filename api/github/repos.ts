@@ -13,6 +13,8 @@ export default async function handler(req: any, res: any) {
       .from("shelby_github_accounts")
       .select("access_token_encrypted, login, avatar_url, html_url")
       .eq("owner_id", auth.userId)
+      .order("connected_at", { ascending: false })
+      .limit(1)
       .maybeSingle();
 
     if (error) throw error;

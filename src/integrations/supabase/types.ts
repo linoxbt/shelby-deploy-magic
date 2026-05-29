@@ -334,8 +334,12 @@ export type Database = {
           address: string;
           chain: string;
           created_at: string;
+          disconnected_at: string | null;
           id: string;
+          managed: boolean;
           owner_id: string;
+          private_key_encrypted: string | null;
+          public_key: string | null;
           status: string;
           updated_at: string;
           wallet_provider: string;
@@ -344,8 +348,12 @@ export type Database = {
           address: string;
           chain: string;
           created_at?: string;
+          disconnected_at?: string | null;
           id?: string;
+          managed?: boolean;
           owner_id?: string;
+          private_key_encrypted?: string | null;
+          public_key?: string | null;
           status?: string;
           updated_at?: string;
           wallet_provider: string;
@@ -354,8 +362,12 @@ export type Database = {
           address?: string;
           chain?: string;
           created_at?: string;
+          disconnected_at?: string | null;
           id?: string;
+          managed?: boolean;
           owner_id?: string;
+          private_key_encrypted?: string | null;
+          public_key?: string | null;
           status?: string;
           updated_at?: string;
           wallet_provider?: string;

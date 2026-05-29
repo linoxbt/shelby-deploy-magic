@@ -48,7 +48,7 @@ async function githubJson<T>(
 
 export async function fetchGithubRepos(token: string) {
   const response = await fetch(
-    "https://api.github.com/user/repos?per_page=100&sort=pushed&type=owner",
+    "https://api.github.com/user/repos?per_page=100&sort=pushed&affiliation=owner,collaborator,organization_member",
     {
       headers: githubHeaders(token),
     },

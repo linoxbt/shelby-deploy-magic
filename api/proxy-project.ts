@@ -50,9 +50,27 @@ export default async function handler(req: any, res: any) {
       .from("shelby_projects")
       .select("content_hash, status, storage_backend, shelby_manifest")
       .eq("slug", String(slug).toLowerCase())
-      .single();
+      .maybeSingle();
     project = data;
     projectError = error;
+
+    if (!project && !projectError) {
+      const { data: preview, error: previewError } = await supabase
+        .from("shelby_preview_deployments")
+        .select("content_hash, status, storage_backend, shelby_manifest")
+        .eq("preview_slug", String(slug).toLowerCase())
+        .maybeSingle();
+
+      projectError = previewError;
+      if (preview) {
+        project = {
+          content_hash: preview.content_hash,
+          status: preview.status === "ready" ? "live" : "processing",
+          storage_backend: preview.storage_backend,
+          shelby_manifest: preview.shelby_manifest,
+        };
+      }
+    }
   } else {
     const { data, error } = await supabase
       .from("shelby_domain_mappings")

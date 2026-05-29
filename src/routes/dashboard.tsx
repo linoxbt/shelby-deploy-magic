@@ -1,5 +1,5 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { Github, Loader2, Plus, Server, ShieldCheck, UploadCloud, Wallet, Zap } from "lucide-react";
+import { Github, Loader2, Plus, Server, ShieldCheck, UploadCloud, Zap } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { usePrivy } from "@privy-io/react-auth";
 import { AppShell, formatBytes, StatusBadge } from "../components/shelbyhost/AppShell";
@@ -39,8 +39,7 @@ interface GithubRepo {
 }
 
 function Dashboard() {
-  const { projects, loading, wallet, connectGithub, fetchGithubRepos, linkGithub } =
-    useShelbyHost();
+  const { projects, loading, wallet, connectGithub, fetchGithubRepos, linkGithub } = useShelbyHost();
   const { user, authenticated, ready } = usePrivy();
   const navigate = useNavigate();
 
@@ -73,8 +72,7 @@ function Dashboard() {
       try {
         const data = await fetchGithubRepos();
         if (data && data.length > 0) {
-          setRepos(
-            data.map((r: any) => ({
+          const mapped = data.map((r: any) => ({
               id: r.id,
               name: r.name,
               fullName: r.full_name,
@@ -84,9 +82,14 @@ function Dashboard() {
               htmlUrl: r.html_url,
               pushedAt: r.pushed_at,
               language: r.language,
-            })),
-          );
+            }));
+          setRepos(mapped);
+          setSelectedRepo((current) => current || mapped[0] || null);
           setRepoStatus(`${data.length} repositories fetched from GitHub.`);
+        } else {
+          setRepos([]);
+          setSelectedRepo(null);
+          setRepoStatus("GitHub is connected, but no repositories were returned. Check repository authorization.");
         }
       } catch (error) {
         console.error("Dashboard repo fetch error:", error);
@@ -168,10 +171,10 @@ function Dashboard() {
           </div>
           <div className="flex flex-col gap-2 sm:flex-row">
             <Link
-              to="/deploy"
+              to="/settings"
               className="inline-flex items-center justify-center gap-2 rounded-md border border-border px-4 py-2.5 text-sm font-bold text-foreground transition hover:border-foreground"
             >
-              <Wallet className="h-4 w-4" /> {wallet ? "Aptos Connected" : "Connect Wallet"}
+              {wallet ? `${wallet.address.slice(0, 6)}...${wallet.address.slice(-4)}` : "Account"}
             </Link>
             <Link
               to="/deploy"
@@ -209,30 +212,31 @@ function Dashboard() {
             <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center">
               <button
                 onClick={async () => {
-                  if (githubAccount) {
-                    const data = await fetchGithubRepos();
-                    setRepos(
-                      data.map((r: any) => ({
-                        id: r.id,
-                        name: r.name,
-                        fullName: r.full_name,
-                        owner: r.owner.login,
-                        private: r.private,
-                        defaultBranch: r.default_branch,
-                        htmlUrl: r.html_url,
-                        pushedAt: r.pushed_at,
-                        language: r.language,
-                      })),
-                    );
-                    setRepoStatus(`${data.length} repositories fetched from GitHub.`);
-                  } else {
-                    await linkGithub();
-                  }
+                  await linkGithub();
+                  const data = await fetchGithubRepos();
+                  const mapped = data.map((r: any) => ({
+                      id: r.id,
+                      name: r.name,
+                      fullName: r.full_name,
+                      owner: r.owner.login,
+                      private: r.private,
+                      defaultBranch: r.default_branch,
+                      htmlUrl: r.html_url,
+                      pushedAt: r.pushed_at,
+                      language: r.language,
+                    }));
+                  setRepos(mapped);
+                  setSelectedRepo(mapped[0] || null);
+                  setRepoStatus(
+                    data.length
+                      ? `${data.length} repositories fetched from GitHub.`
+                      : "GitHub is connected, but no repositories were returned. Check repo authorization scopes.",
+                  );
                 }}
                 className="inline-flex items-center justify-center gap-2 rounded-md bg-primary px-4 py-2.5 text-sm font-bold text-primary-foreground transition hover:bg-primary-hover"
               >
                 <Github className="h-4 w-4" />{" "}
-                {githubAccount ? `Connected @${githubAccount.login}` : "Link GitHub with Privy"}
+                {githubAccount ? `Refresh @${githubAccount.login}` : "Connect GitHub"}
               </button>
               {githubAccount?.avatar_url && (
                 <img
