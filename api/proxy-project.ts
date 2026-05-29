@@ -1,17 +1,35 @@
 import { createClient } from "@supabase/supabase-js";
+import { shelbyManifestUrl, type ShelbyManifestEntry } from "./_lib/shelby";
+
+function shouldFallbackToIndex(req: any, path: string) {
+  const accept = String(req.headers.accept || "");
+  const filename = path.split("/").pop() || "";
+  return accept.includes("text/html") || !filename.includes(".");
+}
+
+async function proxyAsset(req: any, res: any, url: string, headers?: HeadersInit) {
+  const response = await fetch(url, { headers });
+  res.setHeader("X-Content-Type-Options", "nosniff");
+  res.setHeader("Cache-Control", "public, max-age=0, s-maxage=60, stale-while-revalidate=300");
+
+  if (!response.ok) return false;
+
+  const data = await response.arrayBuffer();
+  const contentType = response.headers.get("content-type");
+  if (contentType) res.setHeader("Content-Type", contentType);
+  res.send(Buffer.from(data));
+  return true;
+}
 
 export default async function handler(req: any, res: any) {
-  const { slug, path } = req.query;
+  const { slug, domain, path } = req.query;
 
-  if (!slug || !path) {
-    return res.status(400).send("Missing slug or path");
+  if ((!slug && !domain) || !path) {
+    return res.status(400).send("Missing slug/domain or path");
   }
 
-  const sbUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
-  const sbKey =
-    process.env.SUPABASE_SERVICE_ROLE_KEY ||
-    process.env.SUPABASE_PUBLISHABLE_KEY ||
-    process.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+  const sbUrl = process.env.SUPABASE_URL;
+  const sbKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
   if (!sbUrl || !sbKey) {
     return res.status(500).send("Server Configuration Error: Missing Supabase keys");
@@ -19,14 +37,47 @@ export default async function handler(req: any, res: any) {
 
   const supabase = createClient(sbUrl, sbKey);
 
-  // 1. Get the content hash for this slug
-  const { data: project, error } = await supabase
-    .from("shelby_projects")
-    .select("content_hash, status")
-    .eq("slug", slug)
-    .single();
+  let project: {
+    content_hash: string;
+    status: string;
+    storage_backend?: string | null;
+    shelby_manifest?: ShelbyManifestEntry[] | null;
+  } | null = null;
+  let projectError: unknown = null;
 
-  if (error || !project) {
+  if (slug) {
+    const { data, error } = await supabase
+      .from("shelby_projects")
+      .select("content_hash, status, storage_backend, shelby_manifest")
+      .eq("slug", String(slug).toLowerCase())
+      .single();
+    project = data;
+    projectError = error;
+  } else {
+    const { data, error } = await supabase
+      .from("shelby_domain_mappings")
+      .select(
+        "status, content_hash, shelby_projects!inner(status, storage_backend, shelby_manifest)",
+      )
+      .eq("domain", String(domain).toLowerCase())
+      .single();
+
+    projectError = error;
+    const projectRow = Array.isArray((data as any)?.shelby_projects)
+      ? (data as any).shelby_projects[0]
+      : (data as any)?.shelby_projects;
+
+    if (data) {
+      project = {
+        content_hash: data.content_hash,
+        status: data.status === "active" && projectRow?.status === "live" ? "live" : "processing",
+        storage_backend: projectRow?.storage_backend,
+        shelby_manifest: projectRow?.shelby_manifest,
+      };
+    }
+  }
+
+  if (projectError || !project) {
     return res.status(404).send("Project Not Found");
   }
 
@@ -34,31 +85,40 @@ export default async function handler(req: any, res: any) {
     return res.status(503).send("Project is not live yet");
   }
 
-  // 2. Fetch the file from Supabase Storage
-  const storageUrl = `${sbUrl}/storage/v1/object/public/shelby_nodes/${project.content_hash}${path}`;
+  const rawPath = Array.isArray(path) ? path.join("/") : String(path);
+  const safePath = rawPath.startsWith("/") ? rawPath : `/${rawPath}`;
+  if (safePath.includes("..")) {
+    return res.status(400).send("Invalid path");
+  }
+
+  if (project.storage_backend === "shelby") {
+    const shelbyUrl = shelbyManifestUrl(project.shelby_manifest, safePath);
+    const headers = process.env.SHELBY_API_KEY
+      ? { Authorization: `Bearer ${process.env.SHELBY_API_KEY}` }
+      : undefined;
+    if (shelbyUrl && (await proxyAsset(req, res, shelbyUrl, headers))) return;
+  }
+
+  const storageUrl = `${sbUrl}/storage/v1/object/public/shelby_nodes/${project.content_hash}${safePath}`;
 
   try {
-    const response = await fetch(storageUrl);
-    res.setHeader("Cache-Control", "public, max-age=3600, s-maxage=86400");
-
-    if (!response.ok) {
-      // SPA Fallback: if file not found, try index.html
-      const spaRes = await fetch(
-        `${sbUrl}/storage/v1/object/public/shelby_nodes/${project.content_hash}/index.html`,
-      );
-      if (spaRes.ok) {
-        const data = await spaRes.arrayBuffer();
-        res.setHeader("Content-Type", "text/html");
-        return res.send(Buffer.from(data));
+    if (!(await proxyAsset(req, res, storageUrl))) {
+      if (!shouldFallbackToIndex(req, safePath)) {
+        return res.status(404).send("File Not Found");
       }
+
+      if (project.storage_backend === "shelby") {
+        const shelbyIndexUrl = shelbyManifestUrl(project.shelby_manifest, "/index.html");
+        const headers = process.env.SHELBY_API_KEY
+          ? { Authorization: `Bearer ${process.env.SHELBY_API_KEY}` }
+          : undefined;
+        if (shelbyIndexUrl && (await proxyAsset(req, res, shelbyIndexUrl, headers))) return;
+      }
+
+      const spaUrl = `${sbUrl}/storage/v1/object/public/shelby_nodes/${project.content_hash}/index.html`;
+      if (await proxyAsset(req, res, spaUrl)) return;
       return res.status(404).send("File Not Found");
     }
-
-    const data = await response.arrayBuffer();
-    const contentType = response.headers.get("content-type");
-    if (contentType) res.setHeader("Content-Type", contentType);
-
-    return res.send(Buffer.from(data));
   } catch (err) {
     return res.status(500).send("Gateway Error");
   }

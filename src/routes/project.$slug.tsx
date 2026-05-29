@@ -14,7 +14,6 @@ import {
   GitCommit,
   Globe2,
   HardDrive,
-  History,
   LayoutGrid,
   Loader2,
   RefreshCcw,
@@ -27,7 +26,11 @@ import {
 import { useEffect, useState } from "react";
 import { usePrivy } from "@privy-io/react-auth";
 import { AppShell, formatBytes, StatusBadge } from "../components/shelbyhost/AppShell";
-import { useShelbyHost } from "../context/ShelbyHostContext";
+import {
+  projectPublicUrl,
+  useShelbyHost,
+  type GithubWorkflowSetup,
+} from "../context/ShelbyHostContext";
 
 export const Route = createFileRoute("/project/$slug")({
   head: () => ({
@@ -53,6 +56,10 @@ function ProjectDetail() {
     updateProject,
     registerDomain,
     connectGithub,
+    getGithubAppStatus,
+    getGithubWorkflow,
+    rotateGithubDeployToken,
+    setupGithubApp,
     triggerGithubDeploy,
     verifyDomain,
   } = useShelbyHost();
@@ -72,8 +79,25 @@ function ProjectDetail() {
   const [buildOutput, setBuildOutput] = useState(project?.buildOutput ?? "dist");
   const [domain, setDomain] = useState(project?.domain?.domain ?? "");
   const [repo, setRepo] = useState(project?.github?.repository ?? "shelby-frontend");
+  const [repoOwner, setRepoOwner] = useState(project?.github?.account ?? "");
   const [branch, setBranch] = useState(project?.github?.branch ?? "main");
+  const [workflowSetup, setWorkflowSetup] = useState<GithubWorkflowSetup | null>(null);
+  const [githubAppStatus, setGithubAppStatus] = useState<{
+    configured: boolean;
+    installUrl: string | null;
+  } | null>(null);
+  const [installationId, setInstallationId] = useState("");
   const [copied, setCopied] = useState<string | null>(null);
+
+  useEffect(() => {
+    void getGithubAppStatus().then((status) => {
+      if (status) setGithubAppStatus(status);
+    });
+
+    const params = new URLSearchParams(window.location.search);
+    const installedId = params.get("installation_id");
+    if (installedId) setInstallationId(installedId);
+  }, [getGithubAppStatus]);
 
   if (!ready || loading) {
     return (
@@ -103,7 +127,7 @@ function ProjectDetail() {
     );
   }
 
-  const publicUrl = `shelbyhost.xyz/p/${project.slug}`;
+  const publicUrl = projectPublicUrl(project.slug).replace(/^https?:\/\//, "");
   const latest = project.deployments[0];
   const successCount = project.deployments.filter(
     (d) => d.status === "succeeded" || d.status === "verified",
@@ -117,6 +141,46 @@ function ProjectDetail() {
     navigator.clipboard.writeText(val);
     setCopied(key);
     setTimeout(() => setCopied(null), 1200);
+  };
+
+  const loadWorkflowSetup = async () => {
+    const setup = await getGithubWorkflow(project.slug);
+    if (setup) setWorkflowSetup(setup);
+  };
+
+  const connectRepository = async () => {
+    const owner = repo.includes("/") ? repo.split("/")[0] : repoOwner;
+    const repository = repo.includes("/") ? repo.split("/")[1] : repo;
+    const setup = await connectGithub(project.slug, {
+      account: owner,
+      repository,
+      branch,
+      workflowFile: ".github/workflows/shelbyhost-deploy.yml",
+    });
+    if (setup) setWorkflowSetup(setup);
+  };
+
+  const configureGitHubApp = async () => {
+    if (!githubAppStatus?.configured) {
+      await connectRepository();
+      return;
+    }
+
+    if (!installationId && githubAppStatus.installUrl) {
+      window.location.assign(githubAppStatus.installUrl);
+      return;
+    }
+
+    const owner = repo.includes("/") ? repo.split("/")[0] : repoOwner;
+    const repository = repo.includes("/") ? repo.split("/")[1] : repo;
+    const setup = await setupGithubApp(project.slug, {
+      installationId,
+      account: owner,
+      repository,
+      branch,
+      workflowFile: ".github/workflows/shelbyhost-deploy.yml",
+    });
+    if (setup) setWorkflowSetup(setup);
   };
 
   const tabs = [
@@ -419,8 +483,10 @@ function ProjectDetail() {
                         <p className="mt-1">Please add a CNAME record to your DNS provider:</p>
                         <div className="mt-2 font-mono text-[10px]">
                           <p>Type: CNAME</p>
-                          <p>Name: @ (or {project.slug})</p>
-                          <p className="truncate text-primary font-bold">Value: shelbyhost.xyz</p>
+                          <p>Name: @ (or your desired subdomain)</p>
+                          <p className="truncate text-primary font-bold">
+                            Value: cname.vercel-dns.com
+                          </p>
                         </div>
                       </div>
                       <button
@@ -510,10 +576,20 @@ function ProjectDetail() {
             </Panel>
             <Panel title="Git integration" icon={GitBranch}>
               <label className="grid gap-2 text-sm font-semibold text-foreground">
+                Owner
+                <input
+                  value={repoOwner}
+                  onChange={(e) => setRepoOwner(e.target.value)}
+                  placeholder="github-user-or-org"
+                  className="rounded-md border border-input bg-background px-3 py-2.5 text-foreground outline-none focus:border-primary"
+                />
+              </label>
+              <label className="grid gap-2 text-sm font-semibold text-foreground">
                 Repository
                 <input
                   value={repo}
                   onChange={(e) => setRepo(e.target.value)}
+                  placeholder="repo-name or owner/repo"
                   className="rounded-md border border-input bg-background px-3 py-2.5 text-foreground outline-none focus:border-primary"
                 />
               </label>
@@ -525,26 +601,109 @@ function ProjectDetail() {
                   className="rounded-md border border-input bg-background px-3 py-2.5 text-foreground outline-none focus:border-primary"
                 />
               </label>
+              {githubAppStatus?.configured && (
+                <label className="mt-3 grid gap-2 text-sm font-semibold text-foreground">
+                  GitHub App installation ID
+                  <input
+                    value={installationId}
+                    onChange={(e) => setInstallationId(e.target.value)}
+                    placeholder="Returned by GitHub after app install"
+                    className="rounded-md border border-input bg-background px-3 py-2.5 text-foreground outline-none focus:border-primary"
+                  />
+                </label>
+              )}
               <div className="mt-4 grid gap-2 sm:grid-cols-2">
                 <button
-                  onClick={() =>
-                    connectGithub(project.slug, {
-                      account: "shelby-labs",
-                      repository: repo,
-                      branch,
-                    })
-                  }
+                  onClick={configureGitHubApp}
                   className="rounded-md bg-primary px-4 py-2.5 text-sm font-bold text-primary-foreground hover:bg-primary-hover"
                 >
-                  Connect
+                  {githubAppStatus?.configured
+                    ? installationId
+                      ? "Auto-configure"
+                      : "Install GitHub App"
+                    : "Connect"}
                 </button>
                 <button
-                  onClick={() => triggerGithubDeploy(project.slug)}
+                  onClick={
+                    project.github ? () => triggerGithubDeploy(project.slug) : loadWorkflowSetup
+                  }
                   className="rounded-md border border-border px-4 py-2.5 text-sm font-bold text-foreground hover:border-primary"
                 >
-                  Trigger push
+                  {project.github ? "Trigger deploy" : "Load setup"}
                 </button>
               </div>
+              {project.github && (
+                <div className="mt-4 rounded-md border border-border bg-background/50 p-3 text-xs text-muted-foreground">
+                  <p className="font-mono text-primary">
+                    {project.github.account}/{project.github.repository}@{project.github.branch}
+                  </p>
+                  {project.github.automationStatus === "configured" && (
+                    <p className="mt-1 font-bold text-success">GitHub App automation configured</p>
+                  )}
+                  <button
+                    onClick={loadWorkflowSetup}
+                    className="mt-2 font-bold text-primary hover:underline"
+                  >
+                    Show GitHub Actions setup
+                  </button>
+                </div>
+              )}
+              {workflowSetup && (
+                <div className="mt-4 space-y-3 rounded-md border border-border bg-background/50 p-3">
+                  <div className="grid gap-2 text-xs text-muted-foreground">
+                    <p>
+                      GitHub secret:{" "}
+                      <span className="font-mono text-primary">{workflowSetup.secretName}</span>
+                      {workflowSetup.tokenLastFour && (
+                        <span className="font-mono"> · ends {workflowSetup.tokenLastFour}</span>
+                      )}
+                    </p>
+                    {workflowSetup.deployToken && (
+                      <div className="rounded border border-warning/30 bg-warning/10 p-2">
+                        <p className="font-bold text-warning">
+                          {workflowSetup.automated
+                            ? "Token was saved to GitHub."
+                            : "Copy this token now."}
+                        </p>
+                        <div className="mt-2 flex items-center gap-2">
+                          <code className="min-w-0 flex-1 truncate text-[11px] text-foreground">
+                            {workflowSetup.deployToken}
+                          </code>
+                          <button
+                            onClick={() => copy(workflowSetup.deployToken!, "deploy-token")}
+                            className="text-primary"
+                          >
+                            {copied === "deploy-token" ? "Copied" : "Copy"}
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                  <div>
+                    <div className="mb-2 flex items-center justify-between gap-2">
+                      <p className="font-mono text-xs text-primary">{workflowSetup.workflowFile}</p>
+                      <button
+                        onClick={() => copy(workflowSetup.workflowYaml, "workflow")}
+                        className="text-xs font-bold text-primary hover:underline"
+                      >
+                        {copied === "workflow" ? "Copied" : "Copy workflow"}
+                      </button>
+                    </div>
+                    <pre className="max-h-72 overflow-auto rounded bg-secondary p-3 text-[11px] text-foreground">
+                      {workflowSetup.workflowYaml}
+                    </pre>
+                  </div>
+                  <button
+                    onClick={async () => {
+                      const setup = await rotateGithubDeployToken(project.slug);
+                      if (setup) setWorkflowSetup(setup);
+                    }}
+                    className="rounded-md border border-border px-3 py-2 text-xs font-bold text-foreground hover:border-primary"
+                  >
+                    Rotate deploy token
+                  </button>
+                </div>
+              )}
             </Panel>
             <Panel title="Danger zone" icon={Trash2}>
               <p className="text-sm text-muted-foreground">

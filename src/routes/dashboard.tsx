@@ -134,13 +134,15 @@ function Dashboard() {
 
   if (!authenticated) return null;
 
-  const importSelectedRepo = () => {
+  const importSelectedRepo = async () => {
     if (!firstProject || !selectedRepo) return;
-    connectGithub(firstProject.slug, {
+    await connectGithub(firstProject.slug, {
       account: selectedRepo.owner,
       repository: selectedRepo.name,
       branch: selectedRepo.defaultBranch,
+      workflowFile: ".github/workflows/shelbyhost-deploy.yml",
     });
+    navigate({ to: "/project/$slug", params: { slug: firstProject.slug } });
   };
 
   const stats = [
@@ -206,7 +208,27 @@ function Dashboard() {
             </p>
             <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center">
               <button
-                onClick={githubAccount ? fetchGithubRepos : linkGithub}
+                onClick={async () => {
+                  if (githubAccount) {
+                    const data = await fetchGithubRepos();
+                    setRepos(
+                      data.map((r: any) => ({
+                        id: r.id,
+                        name: r.name,
+                        fullName: r.full_name,
+                        owner: r.owner.login,
+                        private: r.private,
+                        defaultBranch: r.default_branch,
+                        htmlUrl: r.html_url,
+                        pushedAt: r.pushed_at,
+                        language: r.language,
+                      })),
+                    );
+                    setRepoStatus(`${data.length} repositories fetched from GitHub.`);
+                  } else {
+                    await linkGithub();
+                  }
+                }}
                 className="inline-flex items-center justify-center gap-2 rounded-md bg-primary px-4 py-2.5 text-sm font-bold text-primary-foreground transition hover:bg-primary-hover"
               >
                 <Github className="h-4 w-4" />{" "}

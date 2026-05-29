@@ -21,6 +21,8 @@ import {
   type FileEntry,
   type Project,
   type BuildCheckResult,
+  projectPublicUrl,
+  type GithubWorkflowSetup,
 } from "../context/ShelbyHostContext";
 import {
   AptosWalletButton,
@@ -70,6 +72,7 @@ function Deploy() {
     wallet,
     fetchGithubRepos,
     uploadProgress,
+    connectGithub,
   } = useShelbyHost();
   const { authenticated, ready } = usePrivy();
   const navigate = useNavigate();
@@ -91,6 +94,7 @@ function Deploy() {
   const [selectedRepo, setSelectedRepo] = useState<any>(null);
   const [activeStep, setActiveStep] = useState(0);
   const [deployed, setDeployed] = useState<Project | null>(null);
+  const [workflowSetup, setWorkflowSetup] = useState<GithubWorkflowSetup | null>(null);
   const [copied, setCopied] = useState(false);
 
   const slug = useMemo(() => generateSlug(name), [generateSlug, name]);
@@ -117,7 +121,13 @@ function Deploy() {
 
     try {
       setActiveStep(1);
-      const hash = await generateHash(files);
+      const deployFiles = files.map((file) => ({
+        ...file,
+        path: file.path.startsWith(`/${buildOutput}/`)
+          ? `/${file.path.slice(`/${buildOutput}/`.length)}`
+          : file.path,
+      }));
+      const hash = await generateHash(deployFiles);
 
       const signAndSubmit = getAptosSignAndSubmit();
       if (!signAndSubmit || !aptosAddress) {
@@ -168,9 +178,20 @@ function Deploy() {
         buildOutput,
         chain: "aptos",
         walletAddress: aptosAddress || wallet?.address,
+        paymentTxHash: feeResponse.hash,
+        registryTxHash: regResponse.hash,
       });
 
       if (project) {
+        if (selectedRepo) {
+          const setup = await connectGithub(project.slug, {
+            account: selectedRepo.owner?.login ?? selectedRepo.full_name?.split("/")[0] ?? "",
+            repository: selectedRepo.name,
+            branch: selectedRepo.default_branch,
+            workflowFile: ".github/workflows/shelbyhost-deploy.yml",
+          });
+          if (setup) setWorkflowSetup(setup);
+        }
         setActiveStep(4);
         setDeployed(project);
       }
@@ -209,6 +230,17 @@ function Deploy() {
     setSelectedRepo(repo);
     setName(repo.name);
     setDescription(repo.description || `Imported from ${repo.full_name}`);
+    const placeholderHtml = `<!doctype html><html><head><meta charset="utf-8"><title>${repo.name} on ShelbyHost</title><meta name="viewport" content="width=device-width,initial-scale=1"></head><body><main style="font-family:system-ui,sans-serif;max-width:720px;margin:12vh auto;padding:24px"><h1>${repo.name}</h1><p>This ShelbyHost project is connected to ${repo.full_name}. Add the generated GitHub Actions workflow to publish the first repository build.</p></main></body></html>`;
+    const placeholder = new File([placeholderHtml], "index.html", { type: "text/html" });
+    setFiles([
+      {
+        name: "index.html",
+        size: placeholder.size,
+        type: "text/html",
+        path: "/index.html",
+        file: placeholder,
+      },
+    ]);
   };
 
   const breakOutput = () =>
@@ -226,7 +258,21 @@ function Deploy() {
 
   const copyUrl = async () => {
     if (!deployed) return;
-    await navigator.clipboard?.writeText(deployed.latestVersionUrl ?? "");
+    await navigator.clipboard?.writeText(projectPublicUrl(deployed.slug));
+    setCopied(true);
+    window.setTimeout(() => setCopied(false), 2000);
+  };
+
+  const copyWorkflow = async () => {
+    if (!workflowSetup) return;
+    await navigator.clipboard?.writeText(workflowSetup.workflowYaml);
+    setCopied(true);
+    window.setTimeout(() => setCopied(false), 2000);
+  };
+
+  const copyDeployToken = async () => {
+    if (!workflowSetup?.deployToken) return;
+    await navigator.clipboard?.writeText(workflowSetup.deployToken);
     setCopied(true);
     window.setTimeout(() => setCopied(false), 2000);
   };
@@ -334,23 +380,29 @@ function Deploy() {
               )}
               <div>
                 <p className="text-sm font-bold text-foreground">Deployment checker</p>
-                <p className="mt-1 font-mono text-xs text-muted-foreground">{buildCheck.message}</p>
+                <p className="mt-1 font-mono text-xs text-muted-foreground">
+                  {selectedRepo
+                    ? "✓ GitHub source selected. Initial placeholder will reserve the subdomain; the workflow promotes the first build."
+                    : buildCheck.message}
+                </p>
               </div>
             </div>
-            <div className="mt-3 flex flex-wrap gap-2">
-              <button
-                onClick={restoreOutput}
-                className="rounded-md border border-border px-3 py-1.5 text-xs font-bold text-foreground"
-              >
-                Restore index
-              </button>
-              <button
-                onClick={breakOutput}
-                className="rounded-md border border-border px-3 py-1.5 text-xs font-bold text-foreground"
-              >
-                Test failure
-              </button>
-            </div>
+            {!selectedRepo && (
+              <div className="mt-3 flex flex-wrap gap-2">
+                <button
+                  onClick={restoreOutput}
+                  className="rounded-md border border-border px-3 py-1.5 text-xs font-bold text-foreground"
+                >
+                  Restore index
+                </button>
+                <button
+                  onClick={breakOutput}
+                  className="rounded-md border border-border px-3 py-1.5 text-xs font-bold text-foreground"
+                >
+                  Test failure
+                </button>
+              </div>
+            )}
           </div>
 
           <div className="mt-6 rounded-lg border border-border bg-background/50">
@@ -422,7 +474,7 @@ function Deploy() {
               </label>
             </div>
             <div className="rounded-md border border-border bg-secondary p-3 font-mono text-sm text-primary">
-              Preview URL: shelbyhost.xyz/p/{slug}
+              Live URL: {slug}.shelbyhost.xyz
             </div>
             <AptosWalletButton />
             <button
@@ -487,7 +539,7 @@ function Deploy() {
               <h3 className="text-xl font-extrabold text-foreground">Deployment ready.</h3>
               <div className="mt-4 flex items-center gap-2 rounded-md border border-border bg-background p-3">
                 <span className="min-w-0 flex-1 truncate font-mono text-sm text-primary">
-                  {deployed.latestVersionUrl}
+                  {projectPublicUrl(deployed.slug)}
                 </span>
                 <button onClick={copyUrl} className="text-primary">
                   <Copy className="h-4 w-4" />
@@ -498,7 +550,7 @@ function Deploy() {
               </p>
               <div className="mt-5 flex gap-3">
                 <a
-                  href={deployed.latestVersionUrl}
+                  href={projectPublicUrl(deployed.slug)}
                   className="rounded-md bg-primary px-4 py-2 text-sm font-bold text-primary-foreground"
                 >
                   Visit Site
@@ -511,6 +563,34 @@ function Deploy() {
                 </Link>
               </div>
               {copied && <p className="mt-3 text-sm font-semibold text-success">✓ Copied!</p>}
+            </div>
+          )}
+          {workflowSetup && (
+            <div className="mt-6 rounded-lg border border-border bg-background/50 p-5">
+              <h3 className="text-lg font-extrabold text-foreground">GitHub Actions setup</h3>
+              <p className="mt-2 text-sm text-muted-foreground">
+                Add this secret to the selected repository, then commit the workflow file below.
+              </p>
+              <div className="mt-4 rounded-md border border-warning/30 bg-warning/10 p-3">
+                <p className="text-xs font-bold text-warning">{workflowSetup.secretName}</p>
+                <div className="mt-2 flex items-center gap-2">
+                  <code className="min-w-0 flex-1 truncate text-xs text-foreground">
+                    {workflowSetup.deployToken}
+                  </code>
+                  <button onClick={copyDeployToken} className="text-xs font-bold text-primary">
+                    Copy
+                  </button>
+                </div>
+              </div>
+              <div className="mt-4 flex items-center justify-between gap-3">
+                <p className="font-mono text-xs text-primary">{workflowSetup.workflowFile}</p>
+                <button onClick={copyWorkflow} className="text-xs font-bold text-primary">
+                  Copy workflow
+                </button>
+              </div>
+              <pre className="mt-2 max-h-64 overflow-auto rounded-md bg-secondary p-3 text-[11px] text-foreground">
+                {workflowSetup.workflowYaml}
+              </pre>
             </div>
           )}
 

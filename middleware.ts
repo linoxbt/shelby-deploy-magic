@@ -1,54 +1,50 @@
-import { NextResponse } from "next/server";
-import type { NextRequest } from "next/server";
+import { next, rewrite } from "@vercel/functions";
 
-export function middleware(request: NextRequest) {
-  const url = request.nextUrl.clone();
-  const hostname = request.headers.get("host") || "";
+const BASE_DOMAIN = process.env.SHELBY_BASE_DOMAIN || "shelbyhost.xyz";
 
-  // 1. Skip if main domain or local
-  const mainDomains = [
-    "shelbyhost.xyz",
-    "shelbyhost.pages.dev",
-    "localhost:3000",
-    "localhost:5173",
-  ];
+const APP_HOSTS = new Set(
+  [
+    BASE_DOMAIN,
+    `www.${BASE_DOMAIN}`,
+    process.env.VERCEL_PROJECT_PRODUCTION_URL,
+    ...(process.env.SHELBY_APP_HOSTS || "").split(","),
+  ]
+    .map((host) => host?.trim().toLowerCase())
+    .filter(Boolean) as string[],
+);
 
-  const isMainDomain = mainDomains.some((d) => hostname === d || hostname.endsWith(".vercel.app"));
+function isApi(pathname: string) {
+  return pathname.startsWith("/api/");
+}
 
-  if (isMainDomain) {
-    return NextResponse.next();
+function getProjectRoute(hostname: string) {
+  const host = hostname.toLowerCase().split(":")[0];
+  if (APP_HOSTS.has(host) || host.endsWith(".vercel.app")) return null;
+
+  if (host.endsWith(`.${BASE_DOMAIN}`)) {
+    const slug = host.slice(0, -`.${BASE_DOMAIN}`.length);
+    if (!slug || slug === "www") return null;
+    return { slug, domain: "" };
   }
 
-  // 2. Handle subdomains
-  const parts = hostname.split(".");
+  return { slug: "", domain: host };
+}
 
-  // Example: myapp.shelbyhost.xyz -> slug is 'myapp'
-  // If user is using a custom domain (not shelbyhost.xyz), we'd need more logic
-  if (parts.length >= 3) {
-    const slug = parts[0];
-    const path = url.pathname === "/" ? "/index.html" : url.pathname;
+export default function middleware(request: Request) {
+  const url = new URL(request.url);
+  if (isApi(url.pathname)) return next();
 
-    // Rewrite to the API route we found in /api/proxy-project.ts
-    // Vercel serverless functions in /api/ are mapped to /api/*
-    url.pathname = `/api/proxy-project`;
-    url.searchParams.set("slug", slug);
-    url.searchParams.set("path", path);
+  const projectRoute = getProjectRoute(url.hostname);
+  if (!projectRoute) return next();
 
-    return NextResponse.rewrite(url);
-  }
+  const destination = new URL("/api/proxy-project", request.url);
+  destination.searchParams.set("path", url.pathname === "/" ? "/index.html" : url.pathname);
+  if (projectRoute.slug) destination.searchParams.set("slug", projectRoute.slug);
+  if (projectRoute.domain) destination.searchParams.set("domain", projectRoute.domain);
 
-  return NextResponse.next();
+  return rewrite(destination);
 }
 
 export const config = {
-  matcher: [
-    /*
-     * Match all request paths except for the ones starting with:
-     * - api (internal api calls)
-     * - _next/static (static files)
-     * - _next/image (image optimization files)
-     * - favicon.ico (favicon file)
-     */
-    "/((?!api|_next/static|_next/image|favicon.ico).*)",
-  ],
+  matcher: "/((?!api/).*)",
 };
