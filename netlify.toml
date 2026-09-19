@@ -1,0 +1,15 @@
+# Build and publish the Vite frontend.
+# The api/ handlers and middleware.ts currently require Vercel;
+# they must be migrated or proxied separately for a full Netlify deployment.
+[build]
+  command = "npm run build"
+  publish = "dist"
+
+[build.environment]
+  NODE_VERSION = "22"
+
+# Support direct visits and refreshes on TanStack Router routes.
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
