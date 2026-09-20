@@ -38,6 +38,11 @@ export function normalizeSlug(value: string) {
 
   if (!slug) throw new Error("Project slug is required");
   if (slug.length > 63) throw new Error("Project slug must be 63 characters or fewer");
+  if (
+    slug.startsWith("v-") ||
+    ["build", "runner", "gateway", "internal", "docs", "status", "mail"].includes(slug)
+  )
+    throw new Error("This subdomain is reserved for platform infrastructure");
   if (["www", "api", "app", "admin", "dashboard", "assets", "static"].includes(slug)) {
     throw new Error(`"${slug}" is reserved and cannot be used as a project slug`);
   }

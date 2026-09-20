@@ -60,7 +60,7 @@ function encodeBlobName(blobName: string) {
     .join("/");
 }
 
-function shelbyBlobUrl(ownerAddress: string, blobName: string) {
+export function shelbyBlobUrl(ownerAddress: string, blobName: string) {
   return `${shelbyRpcBaseUrl()}/v1/blobs/${ownerAddress}/${encodeBlobName(blobName)}`;
 }
 
@@ -88,7 +88,7 @@ export function shelbyStatus() {
   };
 }
 
-function shelbyClient() {
+export function shelbyClient() {
   if (!process.env.SHELBY_API_KEY) {
     throw new Error("Missing required environment variable: SHELBY_API_KEY");
   }
@@ -119,7 +119,7 @@ function shelbyClient() {
   });
 }
 
-function shelbySigner() {
+export function shelbySigner() {
   if (!process.env.SHELBY_PRIVATE_KEY) {
     throw new Error("Missing required environment variable: SHELBY_PRIVATE_KEY");
   }
@@ -128,7 +128,7 @@ function shelbySigner() {
   });
 }
 
-function ttlMicros() {
+export function ttlMicros() {
   const ttlDays = Number(process.env.SHELBY_BLOB_TTL_DAYS || DEFAULT_TTL_DAYS);
   const safeTtlDays = Number.isFinite(ttlDays) && ttlDays > 0 ? ttlDays : DEFAULT_TTL_DAYS;
   return Math.floor((Date.now() + safeTtlDays * 24 * 60 * 60 * 1000) * 1000);

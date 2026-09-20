@@ -9,7 +9,12 @@
     "build:dev": "vite build --mode development",
     "preview": "vite preview",
     "lint": "eslint .",
-    "format": "prettier --write ."
+    "format": "prettier --write .",
+    "worker": "node --import tsx services/build-worker/worker.ts",
+    "gateway": "node --import tsx services/gateway/server.ts",
+    "test:build-sandbox": "node --import tsx --test services/build-worker/tests/sandbox.test.ts",
+    "test:deployment": "node --import tsx services/build-worker/tests/contracts.test.ts && node --import tsx services/build-worker/tests/gateway.test.ts",
+    "test:deployment-db": "node services/build-worker/tests/database.mjs"
   },
   "dependencies": {
     "@aptos-labs/ts-sdk": "^6.3.1",
@@ -69,6 +74,7 @@
     "sonner": "^2.0.7",
     "tailwind-merge": "^3.5.0",
     "tailwindcss": "^4.2.1",
+    "tsx": "4.20.6",
     "tw-animate-css": "^1.3.4",
     "vaul": "^1.1.2",
     "viem": "^2.47.12",

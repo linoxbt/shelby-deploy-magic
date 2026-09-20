@@ -14,7 +14,12 @@ export default async function handler(req: any, res: any) {
 
     return res.status(200).json({
       ok: true,
-      storage: shelbyStatus(),
+      storage: { ...shelbyStatus(), required: true, enabled: true },
+      publishing: {
+        feeAtomic: process.env.DEPLOY_FEE || "10000",
+        coinType: process.env.USDT_COIN_TYPE || process.env.VITE_USDT_COIN_TYPE || null,
+        network: process.env.APTOS_NETWORK || "testnet",
+      },
       githubApp: {
         configured: configured("GITHUB_APP_ID") && configured("GITHUB_APP_PRIVATE_KEY"),
         installUrl: process.env.GITHUB_APP_INSTALL_URL || null,

@@ -5,7 +5,14 @@ import { useOAuthTokens, usePrivy } from "@privy-io/react-auth";
 import { apiRequest } from "@/lib/api";
 
 export type ProjectStatus = "live" | "processing" | "failed";
-export type DeploymentStatus = "queued" | "succeeded" | "failed" | "pending" | "verified";
+export type DeploymentStatus =
+  | "queued"
+  | "running"
+  | "ready"
+  | "succeeded"
+  | "failed"
+  | "pending"
+  | "verified";
 export type DeploymentTrigger =
   | "manual"
   | "settings"
@@ -59,6 +66,7 @@ export interface BuildLogLine {
 }
 
 export interface Project {
+  activeDeploymentId?: string;
   id: string;
   name: string;
   slug: string;
@@ -85,6 +93,7 @@ export interface Project {
     domain: string;
     status: "active" | "pending" | "failed";
     target: string;
+    verificationToken?: string;
     slug: string;
     hash: string;
     kvKey: string;
@@ -139,6 +148,7 @@ export interface BuildCheckResult {
 }
 
 interface ShelbyHostContextValue {
+  refreshProjects: () => Promise<void>;
   projects: Project[];
   loading: boolean;
   uploadProgress: number | null;
@@ -345,6 +355,7 @@ export function ShelbyHostProvider({ children }: { children: React.ReactNode }) 
       }>("/api/projects");
 
       const mappedProjects: Project[] = (data || []).map((p: any) => ({
+        activeDeploymentId: p.active_deployment_id,
         id: p.id,
         name: p.name,
         slug: p.slug,
@@ -370,6 +381,7 @@ export function ShelbyHostProvider({ children }: { children: React.ReactNode }) 
               domain: p.shelby_domain_mappings[0].domain,
               status: p.shelby_domain_mappings[0].status as any,
               target: p.shelby_domain_mappings[0].target,
+              verificationToken: p.shelby_domain_mappings[0].verification_token,
               slug: p.shelby_domain_mappings[0].slug,
               hash: p.shelby_domain_mappings[0].content_hash,
               kvKey: p.shelby_domain_mappings[0].kv_key,
@@ -542,6 +554,7 @@ export function ShelbyHostProvider({ children }: { children: React.ReactNode }) 
       projects,
       loading,
       uploadProgress,
+      refreshProjects: fetchProjects,
       wallet,
       createProject,
       addProject: createProject,
@@ -794,7 +807,7 @@ export function ShelbyHostProvider({ children }: { children: React.ReactNode }) 
             method: "POST",
             body: JSON.stringify({ slug }),
           });
-          toast.success("GitHub Actions workflow triggered");
+          toast.success("Source build queued. Follow its stages in Deployments.");
           return true;
         } catch (error: any) {
           toast.error(error.message || "Failed to trigger GitHub workflow");
