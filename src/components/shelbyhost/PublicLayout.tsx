@@ -1,5 +1,5 @@
 import { Link } from "@tanstack/react-router";
-import { DynamicWidget } from "@dynamic-labs/sdk-react-core";
+import { DynamicConnectButton } from "@dynamic-labs/sdk-react-core";
 import { ArrowRight, ArrowUpRight, Github, Menu, X } from "lucide-react";
 import { useAuth } from "../../lib/auth";
 import { useState, type ReactNode } from "react";
@@ -48,12 +48,12 @@ export function DeployButton({
       {content}
     </Link>
   ) : (
-    <DynamicWidget
-      variant="modal"
+    <DynamicConnectButton
       buttonClassName={classes}
       buttonContainerClassName="public-auth-button"
-      innerButtonComponent={content}
-    />
+    >
+      {content}
+    </DynamicConnectButton>
   );
 }
 
