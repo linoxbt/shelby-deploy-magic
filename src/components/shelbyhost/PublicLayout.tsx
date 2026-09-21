@@ -1,4 +1,5 @@
 import { Link } from "@tanstack/react-router";
+import { DynamicWidget } from "@dynamic-labs/sdk-react-core";
 import { ArrowRight, ArrowUpRight, Github, Menu, X } from "lucide-react";
 import { useAuth } from "../../lib/auth";
 import { useState, type ReactNode } from "react";
@@ -34,18 +35,25 @@ export function DeployButton({
   className?: string;
   secondary?: boolean;
 }) {
-  const { authenticated, login } = useAuth();
+  const { authenticated } = useAuth();
   const classes = `public-button ${secondary ? "button-outline" : "button-coral"} ${className}`;
+  const content = (
+    <>
+      {children}
+      <ArrowUpRight size={17} />
+    </>
+  );
   return authenticated ? (
     <Link className={classes} to="/deploy">
-      {children}
-      <ArrowUpRight size={17} />
+      {content}
     </Link>
   ) : (
-    <button className={classes} onClick={() => login()}>
-      {children}
-      <ArrowUpRight size={17} />
-    </button>
+    <DynamicWidget
+      variant="modal"
+      buttonClassName={classes}
+      buttonContainerClassName="public-auth-button"
+      innerButtonComponent={content}
+    />
   );
 }
 
