@@ -64,10 +64,14 @@ export function AptosWalletButton({ compact = false }: { compact?: boolean }) {
     <div className="relative">
       <button
         onClick={() => (address ? setOpen(!open) : connect())}
-        className="flex items-center gap-2 rounded-md border border-border bg-card px-3 py-2 text-sm font-bold"
+        className={`flex items-center gap-2 rounded-md border border-border bg-card px-3 py-2 text-sm font-bold ${compact ? "console-wallet-button" : ""}`}
       >
         <Wallet size={16} />
-        {address ? `${address.slice(0, 6)}…${address.slice(-4)}` : "Connect Aptos wallet"}
+        {address
+          ? `${address.slice(0, 6)}…${address.slice(-4)}`
+          : compact
+            ? "Connect wallet"
+            : "Connect Aptos wallet"}
       </button>
       {open && address && (
         <div className="absolute right-0 top-full z-50 mt-2 min-w-52 rounded border border-border bg-card p-2 shadow-xl">

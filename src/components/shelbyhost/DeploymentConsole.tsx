@@ -259,8 +259,8 @@ export function DeploymentConsole({ slug }: { slug: string }) {
     selectedRelease?.duration_ms ??
     (selectedRelease?.started_at ? clock - Date.parse(selectedRelease.started_at) : 0);
   return (
-    <section className="mt-6 space-y-5" aria-label="Deployment console">
-      <div className="flex flex-wrap items-center justify-between gap-3">
+    <section className="deployment-console mt-6 space-y-5" aria-label="Deployment console">
+      <div className="deployment-console-header">
         <div>
           <h2 className="text-xl font-bold">Deployment pipeline</h2>
           <p className="text-sm text-muted-foreground">

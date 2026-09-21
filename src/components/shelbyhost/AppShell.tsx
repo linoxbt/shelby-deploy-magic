@@ -1,24 +1,43 @@
 import { Link, useLocation } from "@tanstack/react-router";
-import { FileText, FolderGit2, LayoutDashboard, Settings, UploadCloud } from "lucide-react";
+import {
+  BookOpen,
+  ChevronRight,
+  CircleHelp,
+  FileText,
+  LayoutDashboard,
+  Plus,
+  Settings,
+  Sparkles,
+  UploadCloud,
+} from "lucide-react";
 import { useShelbyHost } from "../../context/ShelbyHostContext";
+import { AptosWalletButton } from "./AptosWallet";
+import "../../console.css";
 
 const navItems = [
-  { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { to: "/deploy", label: "Deploy", icon: UploadCloud },
-  { to: "/settings", label: "Settings", icon: Settings },
-  { to: "/grant", label: "Brief", icon: FileText },
+  { to: "/dashboard", label: "Overview", icon: LayoutDashboard },
+  { to: "/deploy", label: "New deployment", icon: UploadCloud },
+  { to: "/settings", label: "Workspace settings", icon: Settings },
+  { to: "/grant", label: "Platform brief", icon: FileText },
 ] as const;
 
 export function ShelbyLogo({ compact = false }: { compact?: boolean }) {
   return (
-    <span className="flex items-center gap-3">
-      <span className="relative grid h-9 w-9 place-items-center rounded-md border border-current/50 bg-current/10 shadow-glow">
-        <span className="absolute inset-1 rounded-sm border border-current/70" />
-        <span className="h-3 w-3 rotate-45 border-2 border-current bg-background" />
-      </span>
+    <span className="console-logo">
+      <svg viewBox="0 0 36 36" fill="none" aria-hidden="true">
+        <path d="m18 2 15 9v16l-15 9L3 27V11L18 2Z" fill="currentColor" />
+        <path
+          d="m11 12 7-4 7 4-7 4-7-4Zm0 6 7 4 7-4m-14 6 7 4 7-4"
+          stroke="currentColor"
+          strokeWidth="2.4"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      </svg>
       {!compact && (
-        <span className="leading-none">
-          <span className="block text-lg font-black tracking-normal text-current">Shelby Host</span>
+        <span>
+          shelby<span>host</span>
+          <b>.</b>
         </span>
       )}
     </span>
@@ -27,98 +46,112 @@ export function ShelbyLogo({ compact = false }: { compact?: boolean }) {
 
 export function LogoMark() {
   return (
-    <Link
-      to="/"
-      className="group flex items-center gap-3 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 focus:ring-offset-background"
-    >
+    <Link to="/" className="console-logo-link" aria-label="ShelbyHost home">
       <ShelbyLogo />
     </Link>
   );
 }
 
+function currentLabel(pathname: string) {
+  if (pathname.startsWith("/project/")) return "Project workspace";
+  return navItems.find((item) => item.to === pathname)?.label || "Console";
+}
+
 export function AppShell({ children }: { children: React.ReactNode }) {
   const location = useLocation();
-  const { wallet } = useShelbyHost();
-
+  const { wallet, projects } = useShelbyHost();
   return (
-    <div className="min-h-screen bg-background text-foreground">
-      <div className="fixed inset-0 -z-10 bg-grid opacity-90" />
-      <aside className="fixed left-0 top-0 z-20 hidden h-screen w-64 border-r border-border bg-sidebar px-4 py-5 text-sidebar-foreground lg:block">
-        <LogoMark />
-        <nav className="mt-10 space-y-2">
+    <div className="app-shell min-h-screen text-foreground">
+      <aside className="console-sidebar">
+        <div className="sidebar-top">
+          <LogoMark />
+          <span className="console-badge">Console</span>
+        </div>
+        <Link to="/deploy" className="sidebar-create">
+          <Plus size={16} /> Create project <ChevronRight size={14} />
+        </Link>
+        <p className="sidebar-label">Workspace</p>
+        <nav className="console-nav" aria-label="Workspace navigation">
           {navItems.map((item) => {
             const Icon = item.icon;
             const active =
               location.pathname === item.to ||
-              (item.label === "Dashboard" && location.pathname.startsWith("/project"));
+              (item.to === "/dashboard" && location.pathname.startsWith("/project"));
             return (
-              <Link
-                key={item.label}
-                to={item.to}
-                className={`flex items-center gap-3 rounded-md border-l-2 px-3 py-2.5 text-sm font-bold transition ${active ? "border-sidebar-foreground bg-sidebar-foreground/10 text-sidebar-foreground" : "border-transparent text-sidebar-foreground/60 hover:bg-sidebar-foreground/10 hover:text-sidebar-foreground"}`}
-              >
-                <Icon className="h-4 w-4" />
+              <Link key={item.label} to={item.to} data-active={active || undefined}>
+                <span>
+                  <Icon size={17} />
+                </span>
                 {item.label}
+                {item.to === "/dashboard" && projects.length > 0 && (
+                  <small>{projects.length}</small>
+                )}
               </Link>
             );
           })}
         </nav>
-        <div className="absolute bottom-5 left-4 right-4 rounded-md border border-sidebar-foreground/15 bg-sidebar-foreground/10 p-3">
-          <div className="flex items-center gap-3">
-            <div className="flex h-9 w-9 items-center justify-center rounded-md bg-sidebar-foreground text-sidebar">
-              <FolderGit2 className="h-4 w-4" />
-            </div>
-            <div className="min-w-0 flex-1">
-              <p className="text-sm font-semibold text-sidebar-foreground">
-                {wallet
-                  ? `${wallet.managed ? "Managed" : wallet.chain.toUpperCase()} wallet`
-                  : "Builder wallet"}
-              </p>
-              <p className="truncate font-mono text-xs text-sidebar-foreground/60">
-                {wallet?.address ?? "Creating account..."}
-              </p>
-            </div>
+        <div className="sidebar-guide">
+          <span className="guide-icon">
+            <Sparkles size={15} />
+          </span>
+          <strong>Deploy with confidence</strong>
+          <p>Every release is built in isolation, verified, and stored on Shelby.</p>
+          <Link to="/docs" search={{ topic: "quickstart" }}>
+            <BookOpen size={13} /> Read the guide
+          </Link>
+        </div>
+        <div className="sidebar-account">
+          <span className="account-identicon">{wallet?.address?.slice(2, 4) || "SH"}</span>
+          <div>
+            <strong>{wallet ? "Aptos connected" : "Wallet required"}</strong>
+            <span>
+              {wallet?.address
+                ? `${wallet.address.slice(0, 7)}…${wallet.address.slice(-5)}`
+                : "Connect to publish"}
+            </span>
           </div>
-          <Link
-            to="/settings"
-            className="mt-3 block w-full rounded-md bg-sidebar-foreground px-3 py-2 text-center text-xs font-extrabold text-sidebar transition hover:opacity-90"
-          >
-            Account settings
+          <Link to="/settings" aria-label="Account settings">
+            <Settings size={15} />
           </Link>
         </div>
       </aside>
-      <main className="pb-20 lg:pl-64 lg:pb-0">
-        <header className="sticky top-0 z-10 flex items-center justify-between border-b border-border bg-background/85 px-5 py-3 backdrop-blur lg:hidden">
-          <LogoMark />
-          <Link
-            to="/settings"
-            className="rounded-md border border-border px-3 py-2 text-xs font-bold"
-          >
-            Account
-          </Link>
-        </header>
-        <div className="hidden justify-end border-b border-border bg-background/70 px-8 py-3 backdrop-blur lg:flex">
-          <Link
-            to="/settings"
-            className="rounded-md border border-border bg-card px-4 py-2 text-sm font-bold text-foreground transition hover:border-primary"
-          >
-            Profile & wallet
-          </Link>
-        </div>
-        {children}
-      </main>
-      <nav className="fixed bottom-0 left-0 right-0 z-30 grid grid-cols-4 border-t border-border bg-sidebar px-2 py-2 text-sidebar-foreground lg:hidden">
-        {navItems.map((item) => {
-          const Icon = item.icon;
-          const active = location.pathname === item.to;
-          return (
+      <main className="console-main">
+        <header className="console-topbar">
+          <div className="mobile-logo">
+            <LogoMark />
+          </div>
+          <div className="topbar-path">
+            <span>ShelbyHost</span>
+            <ChevronRight size={13} />
+            <strong>{currentLabel(location.pathname)}</strong>
+          </div>
+          <div className="topbar-actions">
+            <span className="network-pill">
+              <i /> Aptos testnet
+            </span>
             <Link
-              key={item.label}
-              to={item.to}
-              className={`flex flex-col items-center gap-1 rounded-md px-2 py-1.5 text-xs ${active ? "text-sidebar-foreground" : "text-sidebar-foreground/55"}`}
+              to="/docs"
+              search={{ topic: "quickstart" }}
+              className="help-button"
+              aria-label="Documentation"
             >
-              <Icon className="h-4 w-4" />
-              {item.label}
+              <CircleHelp size={17} />
+            </Link>
+            <AptosWalletButton compact />
+          </div>
+        </header>
+        <div className="console-content">{children}</div>
+      </main>
+      <nav className="console-mobile-nav" aria-label="Mobile navigation">
+        {navItems.slice(0, 3).map((item) => {
+          const Icon = item.icon;
+          const active =
+            location.pathname === item.to ||
+            (item.to === "/dashboard" && location.pathname.startsWith("/project"));
+          return (
+            <Link key={item.label} to={item.to} data-active={active || undefined}>
+              <Icon size={18} />
+              <span>{item.label.replace("Workspace ", "")}</span>
             </Link>
           );
         })}
@@ -142,16 +175,16 @@ export function StatusBadge({
     | "succeeded";
 }) {
   const label = status.charAt(0).toUpperCase() + status.slice(1);
+  const good = ["live", "ready", "verified", "succeeded"].includes(status);
   return (
     <span
-      className={`inline-flex items-center gap-2 rounded-full border px-2.5 py-1 text-xs font-semibold ${status === "live" || status === "ready" || status === "verified" || status === "succeeded" ? "border-success/30 bg-success/10 text-success" : status === "failed" ? "border-destructive/30 bg-destructive/10 text-destructive" : "border-warning/30 bg-warning/10 text-warning"}`}
+      className={`status-badge ${good ? "is-good" : status === "failed" ? "is-bad" : "is-waiting"}`}
     >
-      <span className="h-1.5 w-1.5 rounded-full bg-current" />
+      <i />
       {label}
     </span>
   );
 }
-
 export function formatBytes(bytes: number) {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;

@@ -256,7 +256,7 @@ function ProjectDetail() {
 
   return (
     <AppShell>
-      <div className="mx-auto max-w-7xl px-5 py-8 sm:px-8">
+      <div className="console-page project-page">
         <div className="mb-4 flex items-center gap-2 text-xs font-bold uppercase text-muted-foreground">
           <Link to="/dashboard" className="hover:text-foreground">
             Projects
@@ -265,7 +265,7 @@ function ProjectDetail() {
           <span className="text-foreground">{project.name}</span>
         </div>
 
-        <header className="flex flex-col gap-5 border-b border-border pb-6 lg:flex-row lg:items-start lg:justify-between">
+        <header className="project-hero">
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-3">
               <div className="grid h-12 w-12 place-items-center rounded-md border border-border bg-card text-lg font-extrabold text-primary">
@@ -318,7 +318,7 @@ function ProjectDetail() {
           </div>
         </header>
 
-        <nav className="mt-2 flex gap-1 overflow-x-auto border-b border-border">
+        <nav className="project-tabs">
           {tabs.map((t) => {
             const Icon = t.icon;
             const active = tab === t.id;

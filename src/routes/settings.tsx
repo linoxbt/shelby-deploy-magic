@@ -52,10 +52,15 @@ function Settings() {
 
   return (
     <AppShell>
-      <div className="mx-auto max-w-4xl px-5 py-8 sm:px-8">
-        <p className="text-sm font-semibold text-primary">Workspace settings</p>
-        <h1 className="mt-2 text-3xl font-extrabold text-foreground">Settings</h1>
-        <section className="mt-8 space-y-5">
+      <div className="console-page settings-page">
+        <p className="console-eyebrow">Workspace</p>
+        <h1 className="console-title">
+          Settings that keep you <em>in control.</em>
+        </h1>
+        <p className="console-subtitle">
+          Manage identity, source access, deployment notifications, and workspace security.
+        </p>
+        <section className="settings-grid">
           <Panel icon={User} title="Profile">
             <label className="grid gap-2 text-sm font-semibold text-foreground">
               Account
@@ -138,9 +143,11 @@ function Panel({
   children: React.ReactNode;
 }) {
   return (
-    <div className="rounded-lg border border-border bg-card p-5">
-      <div className="mb-5 flex items-center gap-3">
-        <Icon className="h-5 w-5 text-primary" />
+    <div className="settings-panel console-panel">
+      <div className="settings-panel-title">
+        <span>
+          <Icon size={17} />
+        </span>
         <h2 className="text-lg font-bold text-foreground">{title}</h2>
       </div>
       {children}

@@ -1,5 +1,14 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { Github, Loader2, Plus, Server, ShieldCheck, UploadCloud, Zap } from "lucide-react";
+import {
+  ArrowRight,
+  Github,
+  Loader2,
+  Plus,
+  Server,
+  ShieldCheck,
+  UploadCloud,
+  Zap,
+} from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "../lib/auth";
 import { AppShell, formatBytes, StatusBadge } from "../components/shelbyhost/AppShell";
@@ -164,47 +173,48 @@ function Dashboard() {
 
   return (
     <AppShell>
-      <div className="mx-auto max-w-7xl px-5 py-8 sm:px-8">
-        <header className="flex flex-col gap-4 border-b border-border pb-8 sm:flex-row sm:items-center sm:justify-between">
+      <div className="console-page">
+        <header className="dashboard-hero">
           <div>
-            <p className="text-sm font-extrabold uppercase text-muted-foreground">Overview</p>
-            <h1 className="mt-2 text-4xl font-extrabold text-foreground">
-              Projects and deployments.
+            <p className="console-eyebrow">Deployment workspace</p>
+            <h1 className="console-title">
+              Build. Ship. <em>Stay in control.</em>
             </h1>
+            <p className="console-subtitle">
+              Your projects, immutable releases, and real-time build activity in one focused
+              workspace.
+            </p>
           </div>
           <div className="flex flex-col gap-2 sm:flex-row">
-            <Link
-              to="/settings"
-              className="inline-flex items-center justify-center gap-2 rounded-md border border-border px-4 py-2.5 text-sm font-bold text-foreground transition hover:border-foreground"
-            >
+            <Link to="/settings" className="console-secondary">
               {wallet ? `${wallet.address.slice(0, 6)}...${wallet.address.slice(-4)}` : "Account"}
             </Link>
-            <Link
-              to="/deploy"
-              className="inline-flex items-center justify-center gap-2 rounded-md bg-primary px-4 py-2.5 text-sm font-bold text-primary-foreground transition hover:bg-primary-hover hover:shadow-glow"
-            >
+            <Link to="/deploy" className="console-primary">
               <Plus className="h-4 w-4" /> New Deployment
             </Link>
           </div>
         </header>
 
-        <section className="mt-8 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <section className="dashboard-stats">
           {stats.map((stat) => {
             const Icon = stat.icon;
             return (
-              <div key={stat.label} className="rounded-lg border border-border bg-card p-5">
-                <div className="flex items-center justify-between">
-                  <p className="text-sm font-medium text-muted-foreground">{stat.label}</p>
-                  <Icon className="h-4 w-4 text-primary" />
+              <div key={stat.label} className="dashboard-stat">
+                <span className="stat-icon">
+                  <Icon size={17} />
+                </span>
+                <div>
+                  <p>{stat.label}</p>
+                  <strong>{stat.value}</strong>
                 </div>
-                <p className="mt-4 font-mono text-3xl font-bold text-foreground">{stat.value}</p>
+                <ArrowRight size={14} />
               </div>
             );
           })}
         </section>
 
-        <section className="mt-8 grid gap-4 lg:grid-cols-[0.9fr_1.1fr]">
-          <div className="rounded-lg border border-border bg-card p-5">
+        <section className="dashboard-grid">
+          <div className="console-panel p-5">
             <div className="flex items-center gap-3">
               <Github className="h-5 w-5 text-primary" />
               <h2 className="text-lg font-bold text-foreground">Import Git repository</h2>
@@ -283,7 +293,7 @@ function Dashboard() {
             )}
           </div>
 
-          <div className="rounded-lg border border-border bg-card p-5">
+          <div className="console-panel p-5">
             <h2 className="text-lg font-bold text-foreground">Recent deployments</h2>
             <div className="mt-4 space-y-3">
               {latestDeployments.map((deployment) => (
@@ -315,15 +325,21 @@ function Dashboard() {
           </div>
         </section>
 
-        <section className="mt-10">
-          <div className="mb-5">
-            <h2 className="text-xl font-bold text-foreground">Projects</h2>
+        <section className="projects-section">
+          <div className="projects-heading">
+            <div>
+              <p className="console-eyebrow">Production</p>
+              <h2>Projects</h2>
+            </div>
             <p className="mt-1 text-sm text-muted-foreground">
               Live frontends with previews, domains, Git integrations, and immutable hashes.
             </p>
+            <Link to="/deploy" className="console-secondary">
+              <Plus size={14} /> New project
+            </Link>
           </div>
           {projects.length ? (
-            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+            <div className="projects-grid">
               {projects.map((project) => (
                 <ProjectCard key={project.id} project={project} />
               ))}
