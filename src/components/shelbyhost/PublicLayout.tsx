@@ -82,7 +82,7 @@ export function PublicHeader({ docs = false }: { docs?: boolean }) {
           </a>
         </nav>
         <div className="header-actions">
-          <DeployButton>{docs ? "Open console" : "Launch your project"}</DeployButton>
+          {docs && <DeployButton>Open console</DeployButton>}
           <button
             className="menu-toggle"
             onClick={() => setOpen(!open)}
