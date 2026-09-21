@@ -1,73 +1,41 @@
-import {
-  createInstallationToken,
-  decryptToken,
-  githubAppConfigured,
-  triggerWorkflow,
-} from "../_lib/github";
 import { requireAuth } from "../_lib/auth";
-import { errorResponse, methodNotAllowed, readJson } from "../_lib/http";
+import { requireProjectDeployAuth } from "../_lib/deploy-token";
+import { enqueueBuild, frozenSource } from "../_lib/build-queue";
 import { getOwnedProject, getSupabaseAdmin } from "../_lib/supabase";
-
-type TriggerPayload = {
-  slug: string;
-};
-
+import { readJson, errorResponse, methodNotAllowed } from "../_lib/http";
 export default async function handler(req: any, res: any) {
   if (req.method !== "POST") return methodNotAllowed(res, ["POST"]);
-
   try {
-    const auth = await requireAuth(req);
-    const body = await readJson<TriggerPayload>(req);
-    const project = await getOwnedProject(auth.userId, body.slug);
-    const supabase = getSupabaseAdmin();
-
-    const { data: connection, error: connectionError } = await supabase
+    const body = await readJson<any>(req);
+    let project: any;
+    try {
+      const auth = await requireAuth(req);
+      project = await getOwnedProject(auth.userId, String(body.slug || ""));
+    } catch {
+      project = (await requireProjectDeployAuth(req, String(body.slug || ""))).project;
+    }
+    const db = getSupabaseAdmin();
+    const { data, error } = await db
       .from("shelby_github_connections")
       .select("*")
       .eq("project_id", project.id)
+      .order("updated_at", { ascending: false })
+      .limit(1)
       .maybeSingle();
-
-    if (connectionError) throw connectionError;
-    if (!connection) throw new Error("No GitHub repository connected");
-
-    let token = "";
-    if (connection.github_installation_id && githubAppConfigured()) {
-      token = await createInstallationToken(connection.github_installation_id);
-    } else {
-      const { data: account, error: accountError } = await supabase
-        .from("shelby_github_accounts")
-        .select("access_token_encrypted")
-        .eq("owner_id", auth.userId)
-        .eq("login", connection.account)
-        .maybeSingle();
-
-      if (accountError) throw accountError;
-      if (!account) throw new Error("GitHub account token not found");
-      token = decryptToken(account.access_token_encrypted);
-    }
-
-    await triggerWorkflow({
-      token,
-      owner: connection.account,
-      repo: connection.repository,
-      branch: connection.branch,
-      workflowFile: connection.workflow_file,
+    if (error) throw error;
+    if (!data) throw new Error("No GitHub repository connected");
+    // A deploy token can trigger the configured production branch, not substitute
+    // another repository or branch that might expose production build secrets.
+    if (body.branch && body.branch !== data.branch)
+      throw new Error("Only the configured production branch may deploy");
+    const source = await frozenSource(project.owner_id, {
+      kind: "github",
+      repository: `${data.account}/${data.repository}`,
+      branch: data.branch,
     });
-
-    const { error: deploymentError } = await supabase.from("shelby_deployments").insert({
-      project_id: project.id,
-      content_hash: project.content_hash || "",
-      version_url: project.latest_version_url || "",
-      status: "queued",
-      trigger: "github-push",
-      message: "Manual GitHub Actions dispatch",
-      storage_backend: "pending",
-    });
-
-    if (deploymentError) throw deploymentError;
-
-    return res.status(200).json({ ok: true });
+    const id = await enqueueBuild(project, project.owner_id, source, project.build_config || {});
+    return res.status(202).json({ ok: true, deploymentId: id, status: "queued" });
   } catch (error) {
-    return errorResponse(res, error);
+    return errorResponse(res, error instanceof Error ? error : new Error((error as any)?.message));
   }
 }

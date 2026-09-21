@@ -1,0 +1,21 @@
+[Unit]
+Description=ShelbyHost wildcard TLS proxy
+After=network-online.target shelby-gateway.service
+Wants=shelby-gateway.service
+
+[Service]
+Type=notify
+EnvironmentFile=/etc/shelbyhost/caddy.env
+ExecStart=/usr/local/bin/caddy run --environ --config /opt/shelbyhost/infra/Caddyfile
+ExecReload=/usr/local/bin/caddy reload --config /opt/shelbyhost/infra/Caddyfile --force
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+AmbientCapabilities=CAP_NET_BIND_SERVICE
+CapabilityBoundingSet=CAP_NET_BIND_SERVICE
+
+[Install]
+WantedBy=multi-user.target

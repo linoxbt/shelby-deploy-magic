@@ -1,0 +1,18 @@
+[Unit]
+Description=ShelbyHost isolated deployment worker
+After=docker.service network-online.target
+Requires=docker.service
+[Service]
+Type=simple
+WorkingDirectory=/opt/shelbyhost
+EnvironmentFile=/etc/shelbyhost/worker.env
+ExecStart=/usr/bin/node --import tsx services/build-worker/worker.ts
+Restart=always
+RestartSec=5
+TimeoutStopSec=1300
+# This account can control Docker: use a dedicated worker VM with no other tenants.
+User=shelby-worker
+Group=docker
+UMask=0077
+[Install]
+WantedBy=multi-user.target

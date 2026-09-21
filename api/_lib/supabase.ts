@@ -48,7 +48,7 @@ export async function getOwnedProject(ownerId: string, slugOrId: string) {
     .from("shelby_projects")
     .select("*")
     .eq("owner_id", ownerId)
-    .or(`slug.eq.${slugOrId},id.eq.${slugOrId}`)
+    .eq(/^[a-f0-9-]{36}$/i.test(slugOrId) ? "id" : "slug", slugOrId)
     .maybeSingle();
 
   if (error) throw error;

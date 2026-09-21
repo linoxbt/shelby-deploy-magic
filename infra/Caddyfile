@@ -1,0 +1,23 @@
+# Netlify hosts the apex/control plane. An explicit gateway A/AAAA record and the
+# wildcard CNAME point here. DNS-01 produces one reusable wildcard certificate.
+{
+  email {$ACME_EMAIL}
+  on_demand_tls {
+    ask http://127.0.0.1:8090/_shelby/tls-ask
+  }
+}
+
+*.shelbyhost.xyz {
+  tls {
+    dns netlify {$NETLIFY_AUTH_TOKEN}
+  }
+  reverse_proxy 127.0.0.1:8090
+}
+
+# Verified custom domains use tightly guarded on-demand certificates.
+https:// {
+  tls {
+    on_demand
+  }
+  reverse_proxy 127.0.0.1:8090
+}

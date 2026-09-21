@@ -1,85 +1,73 @@
 import crypto from "node:crypto";
-import { errorResponse, methodNotAllowed } from "../_lib/http";
+import { enqueueBuild, frozenSource } from "../_lib/build-queue";
 import { getSupabaseAdmin } from "../_lib/supabase";
-
-function verifySignature(secret: string, body: string, signature: string) {
-  const hmac = crypto.createHmac("sha256", secret);
-  hmac.update(body);
-  const expected = `sha256=${hmac.digest("hex")}`;
-  return crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(signature));
-}
-
-export const config = {
-  api: {
-    bodyParser: false,
-  },
-};
-
-async function getRawBody(req: any) {
-  const chunks: Buffer[] = [];
-  for await (const chunk of req) {
-    chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
-  }
-  return Buffer.concat(chunks).toString("utf8");
-}
-
+import { errorResponse, methodNotAllowed } from "../_lib/http";
+export const config = { api: { bodyParser: false } };
 export default async function handler(req: any, res: any) {
   if (req.method !== "POST") return methodNotAllowed(res, ["POST"]);
-
   try {
-    const rawBody = await getRawBody(req);
-    const secret = process.env.GITHUB_WEBHOOK_SECRET;
-    const signature = req.headers["x-hub-signature-256"] || "";
-    if (secret && (!signature || !verifySignature(secret, rawBody, signature))) {
-      return res.status(401).json({ error: "Invalid GitHub webhook signature" });
+    if (!process.env.GITHUB_WEBHOOK_SECRET)
+      return res.status(503).json({ error: "GitHub webhook signing secret is not configured" });
+    const chunks: Buffer[] = [];
+    let size = 0;
+    for await (const chunk of req) {
+      size += chunk.length;
+      if (size > 1024 * 1024) return res.status(413).json({ error: "Webhook too large" });
+      chunks.push(Buffer.from(chunk));
     }
-
-    const event = req.headers["x-github-event"];
-    if (event !== "push") return res.status(200).json({ message: `Ignored ${event}` });
-
-    const payload = JSON.parse(rawBody);
-    const repoFullName = payload?.repository?.full_name as string;
-    const branch = String(payload?.ref || "").replace("refs/heads/", "");
-    const commitSha = payload?.after as string;
-    const commitMessage = payload?.head_commit?.message || "GitHub push";
-    if (!repoFullName || !branch || !commitSha) throw new Error("Invalid GitHub push payload");
-
-    const [account, repository] = repoFullName.split("/");
-    const supabase = getSupabaseAdmin();
-    const { data: connection, error: connectionError } = await supabase
+    const raw = Buffer.concat(chunks),
+      signature = String(req.headers["x-hub-signature-256"] || "");
+    const expected =
+      "sha256=" +
+      crypto.createHmac("sha256", process.env.GITHUB_WEBHOOK_SECRET).update(raw).digest("hex");
+    if (
+      signature.length !== expected.length ||
+      !crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expected))
+    )
+      return res.status(401).json({ error: "Invalid webhook signature" });
+    const delivery = String(req.headers["x-github-delivery"] || "");
+    if (!delivery || delivery.length > 100) throw new Error("Webhook delivery ID is required");
+    if (req.headers["x-github-event"] !== "push") return res.status(200).json({ ignored: true });
+    const payload = JSON.parse(raw.toString());
+    if (payload.deleted) return res.status(200).json({ ignored: true });
+    const repository = String(payload.repository?.full_name || ""),
+      branch = String(payload.ref || "").replace(/^refs\/heads\//, "");
+    const [account, repo] = repository.split("/"),
+      db = getSupabaseAdmin();
+    const { data, error } = await db
       .from("shelby_github_connections")
-      .select("id, project_id, account, repository, branch")
+      .select("project_id")
       .eq("account", account)
-      .eq("repository", repository)
+      .eq("repository", repo)
       .eq("branch", branch)
-      .maybeSingle();
-
-    if (connectionError) throw connectionError;
-    if (!connection) return res.status(200).json({ message: "No matching ShelbyHost project" });
-
-    const { error: deploymentError } = await supabase.from("shelby_deployments").insert({
-      project_id: connection.project_id,
-      content_hash: commitSha,
-      version_url: "",
-      status: "queued",
-      trigger: "github-push",
-      message: commitMessage.slice(0, 200),
-      storage_backend: "pending",
-    });
-
-    if (deploymentError) throw deploymentError;
-
-    await supabase
-      .from("shelby_projects")
-      .update({ status: "processing" })
-      .eq("id", connection.project_id);
-    await supabase
-      .from("shelby_github_connections")
-      .update({ last_push_at: new Date().toISOString() })
-      .eq("id", connection.id);
-
-    return res.status(200).json({ message: "Deployment queued" });
+      .eq("webhook_status", "active");
+    if (error) throw error;
+    const queued = [];
+    for (const connection of data || []) {
+      const { data: project, error: projectError } = await db
+        .from("shelby_projects")
+        .select("*")
+        .eq("id", connection.project_id)
+        .single();
+      if (projectError) throw projectError;
+      const source = await frozenSource(project.owner_id, {
+        kind: "github",
+        repository,
+        branch,
+        commit: payload.after,
+      });
+      queued.push(
+        await enqueueBuild(
+          project,
+          project.owner_id,
+          source,
+          project.build_config || {},
+          `${delivery}:${project.id}`,
+        ),
+      );
+    }
+    return res.status(202).json({ deploymentIds: queued });
   } catch (error) {
-    return errorResponse(res, error);
+    return errorResponse(res, error instanceof Error ? error : new Error((error as any)?.message));
   }
 }

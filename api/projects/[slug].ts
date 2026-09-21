@@ -1,3 +1,4 @@
+import { buildConfigSchema } from "../_lib/build-contract";
 import { requireAuth } from "../_lib/auth";
 import { errorResponse, methodNotAllowed, readJson } from "../_lib/http";
 import { getOwnedProject, getSupabaseAdmin } from "../_lib/supabase";
@@ -21,6 +22,10 @@ export default async function handler(req: any, res: any) {
         .update({
           framework: body.framework || project.framework,
           build_output: body.buildOutput || project.build_output,
+          build_config: buildConfigSchema.parse({
+            ...(project as any).build_config,
+            ...(body.buildOutput ? { outputDirectory: body.buildOutput } : {}),
+          }),
         })
         .eq("id", project.id)
         .eq("owner_id", auth.userId);

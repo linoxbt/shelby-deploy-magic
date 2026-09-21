@@ -1,3 +1,4 @@
+import { githubAccess } from "../../_lib/build-queue";
 import { generateDeployToken, hashDeployToken, lastFour } from "../../_lib/deploy-token";
 import {
   createInstallationToken,
@@ -54,6 +55,11 @@ export default async function handler(req: any, res: any) {
     if (!owner) throw new Error("Repository owner is required");
     if (!repository) throw new Error("Repository is required");
 
+    const access = await githubAccess(auth.userId, `${owner}/${repository}`);
+    if (!access.token || !access.repo.permissions?.admin)
+      throw new Error(
+        "Forbidden: connect a GitHub account with repository admin access before installing automation",
+      );
     const deployToken = generateDeployToken();
     const workflowYaml = githubWorkflowYaml({
       slug: project.slug,

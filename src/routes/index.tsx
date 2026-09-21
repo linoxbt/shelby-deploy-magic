@@ -114,7 +114,7 @@ const questions = [
   ],
   [
     "Do I need to connect a wallet?",
-    "You can sign in with email, Google, or GitHub. ShelbyHost creates a managed Aptos account, or you can connect an Aptos wallet. Initial deployment requires testnet APT for gas and the configured deployment-fee token.",
+    "Connect and authenticate an Aptos wallet through Dynamic. Initial publication requires testnet APT for gas and the configured deployment-fee token.",
   ],
   [
     "Where are my files stored?",

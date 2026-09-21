@@ -68,27 +68,32 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <div className="flex h-9 w-9 items-center justify-center rounded-md bg-sidebar-foreground text-sidebar">
               <FolderGit2 className="h-4 w-4" />
             </div>
-          <div className="min-w-0 flex-1">
-            <p className="text-sm font-semibold text-sidebar-foreground">
-                {wallet ? `${wallet.managed ? "Managed" : wallet.chain.toUpperCase()} wallet` : "Builder wallet"}
-            </p>
-            <p className="truncate font-mono text-xs text-sidebar-foreground/60">
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-semibold text-sidebar-foreground">
+                {wallet
+                  ? `${wallet.managed ? "Managed" : wallet.chain.toUpperCase()} wallet`
+                  : "Builder wallet"}
+              </p>
+              <p className="truncate font-mono text-xs text-sidebar-foreground/60">
                 {wallet?.address ?? "Creating account..."}
-            </p>
+              </p>
+            </div>
           </div>
-        </div>
           <Link
             to="/settings"
             className="mt-3 block w-full rounded-md bg-sidebar-foreground px-3 py-2 text-center text-xs font-extrabold text-sidebar transition hover:opacity-90"
           >
             Account settings
           </Link>
-      </div>
-    </aside>
+        </div>
+      </aside>
       <main className="pb-20 lg:pl-64 lg:pb-0">
         <header className="sticky top-0 z-10 flex items-center justify-between border-b border-border bg-background/85 px-5 py-3 backdrop-blur lg:hidden">
           <LogoMark />
-          <Link to="/settings" className="rounded-md border border-border px-3 py-2 text-xs font-bold">
+          <Link
+            to="/settings"
+            className="rounded-md border border-border px-3 py-2 text-xs font-bold"
+          >
             Account
           </Link>
         </header>
@@ -125,12 +130,21 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 export function StatusBadge({
   status,
 }: {
-  status: "live" | "processing" | "failed" | "verified" | "pending" | "queued" | "succeeded";
+  status:
+    | "live"
+    | "processing"
+    | "running"
+    | "ready"
+    | "failed"
+    | "verified"
+    | "pending"
+    | "queued"
+    | "succeeded";
 }) {
   const label = status.charAt(0).toUpperCase() + status.slice(1);
   return (
     <span
-      className={`inline-flex items-center gap-2 rounded-full border px-2.5 py-1 text-xs font-semibold ${status === "live" || status === "verified" || status === "succeeded" ? "border-success/30 bg-success/10 text-success" : status === "failed" ? "border-destructive/30 bg-destructive/10 text-destructive" : "border-warning/30 bg-warning/10 text-warning"}`}
+      className={`inline-flex items-center gap-2 rounded-full border px-2.5 py-1 text-xs font-semibold ${status === "live" || status === "ready" || status === "verified" || status === "succeeded" ? "border-success/30 bg-success/10 text-success" : status === "failed" ? "border-destructive/30 bg-destructive/10 text-destructive" : "border-warning/30 bg-warning/10 text-warning"}`}
     >
       <span className="h-1.5 w-1.5 rounded-full bg-current" />
       {label}

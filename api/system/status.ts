@@ -14,17 +14,22 @@ export default async function handler(req: any, res: any) {
 
     return res.status(200).json({
       ok: true,
-      storage: shelbyStatus(),
+      storage: { ...shelbyStatus(), required: true, enabled: true },
+      publishing: {
+        feeAtomic: process.env.DEPLOY_FEE || "10000",
+        coinType: process.env.USDT_COIN_TYPE || process.env.VITE_USDT_COIN_TYPE || null,
+        network: process.env.APTOS_NETWORK || "testnet",
+      },
       githubApp: {
         configured: configured("GITHUB_APP_ID") && configured("GITHUB_APP_PRIVATE_KEY"),
         installUrl: process.env.GITHUB_APP_INSTALL_URL || null,
       },
       customDomains: {
-        vercelAutomation: configured("VERCEL_TOKEN") && configured("VERCEL_PROJECT_ID"),
-        target: process.env.SHELBY_CUSTOM_DOMAIN_TARGET || "cname.vercel-dns.com",
+        gatewayConfigured: configured("SHELBY_CUSTOM_DOMAIN_TARGET"),
+        target: process.env.SHELBY_CUSTOM_DOMAIN_TARGET || "gateway.shelbyhost.xyz",
       },
       auth: {
-        privy: configured("PRIVY_APP_ID") && configured("PRIVY_APP_SECRET"),
+        dynamic: configured("DYNAMIC_ENVIRONMENT_ID"),
       },
       database: {
         supabaseAdmin: configured("SUPABASE_URL") && configured("SUPABASE_SERVICE_ROLE_KEY"),

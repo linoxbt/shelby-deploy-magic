@@ -1,3 +1,4 @@
+import { DeploymentConsole } from "../components/shelbyhost/DeploymentConsole";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import {
   Activity,
@@ -26,7 +27,7 @@ import {
   Zap,
 } from "lucide-react";
 import { useEffect, useState } from "react";
-import { usePrivy } from "@privy-io/react-auth";
+import { useAuth } from "../lib/auth";
 import { apiRequest } from "../lib/api";
 import { AppShell, formatBytes, StatusBadge } from "../components/shelbyhost/AppShell";
 import { findFrameworkPreset, frameworkPresets } from "../lib/framework-presets";
@@ -67,7 +68,7 @@ function ProjectDetail() {
     triggerGithubDeploy,
     verifyDomain,
   } = useShelbyHost();
-  const { authenticated, ready, getAccessToken } = usePrivy();
+  const { authenticated, ready, getAccessToken } = useAuth();
 
   useEffect(() => {
     if (ready && !authenticated) {
@@ -78,7 +79,7 @@ function ProjectDetail() {
   const project = projects.find((item) => item.slug === slug);
   const [tab, setTab] = useState<
     "overview" | "deployments" | "files" | "domains" | "activity" | "settings"
-  >("overview");
+  >("deployments");
   const [framework, setFramework] = useState(project?.framework ?? "vite");
   const [buildOutput, setBuildOutput] = useState(project?.buildOutput ?? "dist");
   const [domain, setDomain] = useState(project?.domain?.domain ?? "");
@@ -113,17 +114,17 @@ function ProjectDetail() {
 
   const loadEnvVars = async () => {
     if (!project) return;
-    const data = await apiRequest<{ env: Array<{ id: string; key: string; target: string; updated_at: string }> }>(
-      `/api/projects/${project.slug}/env`,
-      {},
-      getAccessToken,
-    );
+    const data = await apiRequest<{
+      env: Array<{ id: string; key: string; target: string; updated_at: string }>;
+    }>(`/api/projects/${project.slug}/env`, {}, getAccessToken);
     setEnvVars(data.env || []);
   };
 
   const saveEnvVar = async () => {
     if (!project) return;
-    const data = await apiRequest<{ env: { id: string; key: string; target: string; updated_at: string } }>(
+    const data = await apiRequest<{
+      env: { id: string; key: string; target: string; updated_at: string };
+    }>(
       `/api/projects/${project.slug}/env`,
       {
         method: "POST",
@@ -184,9 +185,11 @@ function ProjectDetail() {
   }
 
   const publicUrl = projectPublicUrl(project.slug).replace(/^https?:\/\//, "");
-  const latest = project.deployments[0];
+  const latest =
+    project.deployments.find((d) => d.id === project.activeDeploymentId) ||
+    project.deployments.find((d) => d.status === "succeeded" || d.status === "verified");
   const successCount = project.deployments.filter(
-    (d) => d.status === "succeeded" || d.status === "verified",
+    (d) => d.status === "ready" || d.status === "succeeded" || d.status === "verified",
   ).length;
   const failCount = project.deployments.filter((d) => d.status === "failed").length;
   const successRate = project.deployments.length
@@ -276,7 +279,8 @@ function ProjectDetail() {
                   <StatusBadge status={project.status} />
                 </div>
                 <a
-                  href={`https://${publicUrl}`}
+                  href={project.hash ? `https://${publicUrl}` : undefined}
+                  aria-disabled={!project.hash}
                   target="_blank"
                   rel="noreferrer"
                   className="mt-1 flex items-center gap-1.5 font-mono text-sm text-primary hover:underline"
@@ -288,7 +292,8 @@ function ProjectDetail() {
           </div>
           <div className="flex flex-wrap gap-2">
             <a
-              href={`https://${publicUrl}`}
+              href={project.hash ? `https://${publicUrl}` : undefined}
+              aria-disabled={!project.hash}
               target="_blank"
               rel="noreferrer"
               className="inline-flex items-center gap-2 rounded-md border border-border bg-card px-4 py-2.5 text-sm font-bold text-foreground transition hover:border-primary"
@@ -304,7 +309,8 @@ function ProjectDetail() {
               </button>
             )}
             <a
-              href={`https://${publicUrl}`}
+              href={project.hash ? `https://${publicUrl}` : undefined}
+              aria-disabled={!project.hash}
               className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2.5 text-sm font-bold text-primary-foreground transition hover:bg-primary-hover"
             >
               <ExternalLink className="h-4 w-4" /> Open
@@ -454,75 +460,7 @@ function ProjectDetail() {
           </div>
         )}
 
-        {tab === "deployments" && (
-          <section className="mt-6 grid gap-6">
-            <div className="rounded-lg border border-border bg-card p-5">
-              <div className="mb-4 flex items-center justify-between">
-                <div>
-                  <h2 className="text-lg font-bold text-foreground">Deployment history</h2>
-                  <p className="text-xs text-muted-foreground">
-                    {successCount} succeeded · {failCount} failed
-                  </p>
-                </div>
-              </div>
-              <DeploymentList items={project.deployments} detailed />
-            </div>
-
-            <div className="grid gap-6 lg:grid-cols-2">
-              <Panel title="PR previews" icon={GitBranch}>
-                <div className="space-y-3">
-                  {(project.previews || []).map((preview) => (
-                    <div
-                      key={preview.id}
-                      className="rounded-md border border-border bg-background/40 p-3"
-                    >
-                      <div className="flex items-center justify-between gap-3">
-                        <p className="min-w-0 truncate font-mono text-sm text-primary">
-                          {preview.previewUrl}
-                        </p>
-                        <StatusBadge status={preview.status as any} />
-                      </div>
-                      <p className="mt-2 text-xs text-muted-foreground">
-                        {preview.pullRequestNumber
-                          ? `PR #${preview.pullRequestNumber}`
-                          : preview.branch}{" "}
-                        · {preview.commitSha?.slice(0, 8) || preview.contentHash.slice(0, 8)}
-                      </p>
-                    </div>
-                  ))}
-                  {(project.previews || []).length === 0 && (
-                    <p className="text-sm text-muted-foreground">
-                      Pull request previews appear here after the generated GitHub workflow runs.
-                    </p>
-                  )}
-                </div>
-              </Panel>
-              <Panel title="Build logs" icon={Terminal}>
-                <div className="max-h-80 space-y-2 overflow-auto rounded-md border border-border bg-background/50 p-3">
-                  {(project.buildLogs || []).slice(0, 30).map((line) => (
-                    <p
-                      key={line.id}
-                      className={`font-mono text-xs ${
-                        line.level === "error" ? "text-destructive" : "text-muted-foreground"
-                      }`}
-                    >
-                      <span className="text-primary">
-                        {new Date(line.createdAt).toLocaleTimeString()}
-                      </span>{" "}
-                      {line.line}
-                    </p>
-                  ))}
-                  {(project.buildLogs || []).length === 0 && (
-                    <p className="text-sm text-muted-foreground">
-                      GitHub finalization logs appear after a workflow deploy. Native ShelbyHost
-                      streaming logs require the runner layer.
-                    </p>
-                  )}
-                </div>
-              </Panel>
-            </div>
-          </section>
-        )}
+        {tab === "deployments" && <DeploymentConsole slug={project.slug} />}
 
         {tab === "files" && (
           <section className="mt-6 rounded-lg border border-border bg-card p-5">
@@ -595,6 +533,14 @@ function ProjectDetail() {
                     <div className="mt-3 space-y-3">
                       <div className="rounded bg-background/50 p-2 text-[10px] text-muted-foreground">
                         <p className="font-bold uppercase text-primary">DNS Setup Instructions:</p>
+                        <p>
+                          Add TXT record <code>_shelbyhost.{project.domain.domain}</code> with value{" "}
+                          <code className="break-all">
+                            {project.domain.verificationToken ||
+                              "Register this domain again to generate a verification token"}
+                          </code>
+                          .
+                        </p>
                         <p className="mt-1">Please add a CNAME record to your DNS provider:</p>
                         <div className="mt-2 font-mono text-[10px]">
                           <p>Type: CNAME</p>
@@ -690,8 +636,8 @@ function ProjectDetail() {
               </div>
               {selectedFramework.status === "runner-required" && (
                 <p className="mt-3 rounded-md border border-warning/30 bg-warning/10 p-3 text-xs text-muted-foreground">
-                  This preset is configured for GitHub builds, but native SSR/serverless/edge
-                  execution requires the ShelbyHost runner layer.
+                  This preset needs a static export or adapter. Persistent SSR, serverless and edge
+                  runtimes are not supported by the artifact gateway.
                 </p>
               )}
               <label className="mt-3 grid gap-2 text-sm font-semibold text-foreground">
@@ -771,8 +717,8 @@ function ProjectDetail() {
                 ))}
                 {envVars.length === 0 && (
                   <p className="text-sm text-muted-foreground">
-                    No project variables yet. GitHub workflows load production and preview
-                    variables before the build command runs.
+                    No project variables yet. GitHub workflows load production and preview variables
+                    before the build command runs.
                   </p>
                 )}
               </div>

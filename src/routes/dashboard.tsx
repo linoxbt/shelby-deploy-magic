@@ -1,7 +1,7 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { Github, Loader2, Plus, Server, ShieldCheck, UploadCloud, Zap } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
-import { usePrivy } from "@privy-io/react-auth";
+import { useAuth } from "../lib/auth";
 import { AppShell, formatBytes, StatusBadge } from "../components/shelbyhost/AppShell";
 import { ProjectCard } from "../components/shelbyhost/ProjectCard";
 import { useShelbyHost } from "../context/ShelbyHostContext";
@@ -39,8 +39,9 @@ interface GithubRepo {
 }
 
 function Dashboard() {
-  const { projects, loading, wallet, connectGithub, fetchGithubRepos, linkGithub } = useShelbyHost();
-  const { user, authenticated, ready } = usePrivy();
+  const { projects, loading, wallet, connectGithub, fetchGithubRepos, linkGithub } =
+    useShelbyHost();
+  const { user, authenticated, ready } = useAuth();
   const navigate = useNavigate();
 
   const [githubAccount, setGithubAccount] = useState<GithubAccount | null>(null);
@@ -73,23 +74,25 @@ function Dashboard() {
         const data = await fetchGithubRepos();
         if (data && data.length > 0) {
           const mapped = data.map((r: any) => ({
-              id: r.id,
-              name: r.name,
-              fullName: r.full_name,
-              owner: r.owner.login,
-              private: r.private,
-              defaultBranch: r.default_branch,
-              htmlUrl: r.html_url,
-              pushedAt: r.pushed_at,
-              language: r.language,
-            }));
+            id: r.id,
+            name: r.name,
+            fullName: r.full_name,
+            owner: r.owner.login,
+            private: r.private,
+            defaultBranch: r.default_branch,
+            htmlUrl: r.html_url,
+            pushedAt: r.pushed_at,
+            language: r.language,
+          }));
           setRepos(mapped);
           setSelectedRepo((current) => current || mapped[0] || null);
           setRepoStatus(`${data.length} repositories fetched from GitHub.`);
         } else {
           setRepos([]);
           setSelectedRepo(null);
-          setRepoStatus("GitHub is connected, but no repositories were returned. Check repository authorization.");
+          setRepoStatus(
+            "GitHub is connected, but no repositories were returned. Check repository authorization.",
+          );
         }
       } catch (error) {
         console.error("Dashboard repo fetch error:", error);
@@ -215,16 +218,16 @@ function Dashboard() {
                   await linkGithub();
                   const data = await fetchGithubRepos();
                   const mapped = data.map((r: any) => ({
-                      id: r.id,
-                      name: r.name,
-                      fullName: r.full_name,
-                      owner: r.owner.login,
-                      private: r.private,
-                      defaultBranch: r.default_branch,
-                      htmlUrl: r.html_url,
-                      pushedAt: r.pushed_at,
-                      language: r.language,
-                    }));
+                    id: r.id,
+                    name: r.name,
+                    fullName: r.full_name,
+                    owner: r.owner.login,
+                    private: r.private,
+                    defaultBranch: r.default_branch,
+                    htmlUrl: r.html_url,
+                    pushedAt: r.pushed_at,
+                    language: r.language,
+                  }));
                   setRepos(mapped);
                   setSelectedRepo(mapped[0] || null);
                   setRepoStatus(

@@ -1,11 +1,18 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { useOAuthTokens, usePrivy } from "@privy-io/react-auth";
+import { useAuth } from "../lib/auth";
 import { apiRequest } from "@/lib/api";
 
 export type ProjectStatus = "live" | "processing" | "failed";
-export type DeploymentStatus = "queued" | "succeeded" | "failed" | "pending" | "verified";
+export type DeploymentStatus =
+  | "queued"
+  | "running"
+  | "ready"
+  | "succeeded"
+  | "failed"
+  | "pending"
+  | "verified";
 export type DeploymentTrigger =
   | "manual"
   | "settings"
@@ -59,6 +66,7 @@ export interface BuildLogLine {
 }
 
 export interface Project {
+  activeDeploymentId?: string;
   id: string;
   name: string;
   slug: string;
@@ -85,6 +93,7 @@ export interface Project {
     domain: string;
     status: "active" | "pending" | "failed";
     target: string;
+    verificationToken?: string;
     slug: string;
     hash: string;
     kvKey: string;
@@ -139,6 +148,7 @@ export interface BuildCheckResult {
 }
 
 interface ShelbyHostContextValue {
+  refreshProjects: () => Promise<void>;
   projects: Project[];
   loading: boolean;
   uploadProgress: number | null;
@@ -287,9 +297,7 @@ const generateRealHash = async (files: FileEntry[]) => {
       const hashBuffer = await crypto.subtle.digest("SHA-256", buffer);
       const hashArray = Array.from(new Uint8Array(hashBuffer));
       fileHash = hashArray.map((b) => b.toString(16).padStart(2, "0")).join("");
-    } else {
-      fileHash = `mock-${file.size}-${file.name}`;
-    }
+    } else throw new Error(`Cannot hash ${file.path}: source bytes are unavailable`);
     combinedHashData += `${fileHash}:${file.path}\n`;
   }
 
@@ -304,32 +312,13 @@ export function ShelbyHostProvider({ children }: { children: React.ReactNode }) 
   const [loading, setLoading] = useState(true);
   const [uploadProgress, setUploadProgress] = useState<number | null>(null);
   const [wallet, setWallet] = useState<WalletConnection | undefined>();
-  const { user, authenticated, ready, linkGithub: privyLinkGithub, getAccessToken } = usePrivy();
+  const { user, authenticated, ready, getAccessToken } = useAuth();
 
   const apiFetch = useCallback(
     async <T,>(path: string, options: Parameters<typeof apiRequest<T>>[1] = {}) =>
       apiRequest<T>(path, options, getAccessToken),
     [getAccessToken],
   );
-
-  const { reauthorize: reauthorizeGithub } = useOAuthTokens({
-    onOAuthTokenGrant: async ({ oAuthTokens }) => {
-      if (oAuthTokens.provider !== "github") return;
-      try {
-        await apiFetch("/api/github/account", {
-          method: "POST",
-          body: {
-            accessToken: oAuthTokens.accessToken,
-            scopes: oAuthTokens.scopes || [],
-          },
-        });
-        toast.success("GitHub account connected");
-      } catch (error) {
-        console.error("Failed to save GitHub token:", error);
-        toast.error("GitHub connected, but token storage failed");
-      }
-    },
-  });
 
   const fetchProjects = useCallback(async () => {
     try {
@@ -345,6 +334,7 @@ export function ShelbyHostProvider({ children }: { children: React.ReactNode }) 
       }>("/api/projects");
 
       const mappedProjects: Project[] = (data || []).map((p: any) => ({
+        activeDeploymentId: p.active_deployment_id,
         id: p.id,
         name: p.name,
         slug: p.slug,
@@ -370,6 +360,7 @@ export function ShelbyHostProvider({ children }: { children: React.ReactNode }) 
               domain: p.shelby_domain_mappings[0].domain,
               status: p.shelby_domain_mappings[0].status as any,
               target: p.shelby_domain_mappings[0].target,
+              verificationToken: p.shelby_domain_mappings[0].verification_token,
               slug: p.shelby_domain_mappings[0].slug,
               hash: p.shelby_domain_mappings[0].content_hash,
               kvKey: p.shelby_domain_mappings[0].kv_key,
@@ -542,6 +533,7 @@ export function ShelbyHostProvider({ children }: { children: React.ReactNode }) 
       projects,
       loading,
       uploadProgress,
+      refreshProjects: fetchProjects,
       wallet,
       createProject,
       addProject: createProject,
@@ -794,7 +786,7 @@ export function ShelbyHostProvider({ children }: { children: React.ReactNode }) 
             method: "POST",
             body: JSON.stringify({ slug }),
           });
-          toast.success("GitHub Actions workflow triggered");
+          toast.success("Source build queued. Follow its stages in Deployments.");
           return true;
         } catch (error: any) {
           toast.error(error.message || "Failed to trigger GitHub workflow");
@@ -826,13 +818,12 @@ export function ShelbyHostProvider({ children }: { children: React.ReactNode }) 
       },
       linkGithub: async () => {
         try {
-          const hasGithub = user?.linkedAccounts?.some((acc: any) => acc.type === "github_oauth");
-          if (!hasGithub) await privyLinkGithub();
-          await reauthorizeGithub({ provider: "github" });
-          await new Promise((resolve) => window.setTimeout(resolve, 400));
+          const { url } = await apiFetch<{ url: string }>("/api/github/oauth/start", {
+            method: "POST",
+          });
+          window.location.assign(url);
         } catch (error) {
-          console.error("Privy GitHub link error:", error);
-          toast.error("GitHub authorization did not complete");
+          toast.error(error instanceof Error ? error.message : "GitHub authorization failed");
         }
       },
       disconnectGithub: async () => {
@@ -846,33 +837,12 @@ export function ShelbyHostProvider({ children }: { children: React.ReactNode }) 
         }
       },
       fetchGithubRepos: async () => {
-        // Look up linked GitHub account in Privy user
-        const githubAccount = user?.linkedAccounts?.find(
-          (acc: any) => acc.type === "github_oauth",
-        ) as any;
-
         try {
-          // Call the edge function proxy to avoid CORS + token exposure
-          let data = await apiFetch<any>("/api/github/repos");
-          if (!data?.account) {
-            if (!githubAccount) {
-              await privyLinkGithub();
-            }
-            toast.info("Authorize GitHub repository access to import repos.");
-            await reauthorizeGithub({ provider: "github" });
-            await new Promise((resolve) => window.setTimeout(resolve, 400));
-            data = await apiFetch<any>("/api/github/repos");
-          }
-          if (!data?.account) {
-            toast.info("Connect GitHub to import repositories.");
-          }
-          if (data?.account && (!data?.repos || data.repos.length === 0)) {
-            toast.info("GitHub connected, but no owned repositories were returned.");
-          }
-          return data?.repos ?? [];
-        } catch (err) {
-          console.error("Failed to fetch GitHub repos:", err);
-          toast.error("Could not fetch GitHub repositories");
+          const data = await apiFetch<any>("/api/github/repos");
+          if (!data.account) toast.info("Connect GitHub to import repositories.");
+          return data.repos || [];
+        } catch (error) {
+          toast.error(error instanceof Error ? error.message : "Could not fetch repositories");
           return [];
         }
       },
@@ -897,17 +867,7 @@ export function ShelbyHostProvider({ children }: { children: React.ReactNode }) 
         };
       },
     };
-  }, [
-    projects,
-    loading,
-    uploadProgress,
-    wallet,
-    user,
-    apiFetch,
-    fetchProjects,
-    privyLinkGithub,
-    reauthorizeGithub,
-  ]);
+  }, [projects, loading, uploadProgress, wallet, user, apiFetch, fetchProjects]);
 
   return <ShelbyHostContext.Provider value={value}>{children}</ShelbyHostContext.Provider>;
 }

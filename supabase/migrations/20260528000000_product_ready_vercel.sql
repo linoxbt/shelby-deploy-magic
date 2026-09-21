@@ -78,13 +78,12 @@ ALTER TABLE public.shelby_github_connections
 ALTER TABLE public.shelby_domain_mappings
   DROP CONSTRAINT IF EXISTS shelby_domain_mappings_status_check;
 
+UPDATE public.shelby_domain_mappings SET status = 'active' WHERE status = 'verified';
+
 ALTER TABLE public.shelby_domain_mappings
   ADD CONSTRAINT shelby_domain_mappings_status_check
   CHECK (status IN ('active', 'pending', 'failed'));
 
-UPDATE public.shelby_domain_mappings SET status = 'active' WHERE status = 'verified';
-
-DROP INDEX IF EXISTS shelby_wallet_connections_chain_address_key;
 ALTER TABLE public.shelby_wallet_connections
   DROP CONSTRAINT IF EXISTS shelby_wallet_connections_chain_address_key;
 

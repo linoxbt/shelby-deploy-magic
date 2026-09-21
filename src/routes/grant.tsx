@@ -41,12 +41,12 @@ const pillars = [
   {
     icon: Wallet,
     title: "Aptos-Native Ownership",
-    body: "Each authenticated user receives a managed Aptos account, and deployments are tied to content hashes and wallet identity.",
+    body: "Dynamic verifies the connected Aptos wallet, and deployments are tied to content hashes and wallet identity.",
   },
   {
     icon: Globe2,
     title: "Domains and Distribution",
-    body: "Projects receive wildcard ShelbyHost subdomains, can attach custom domains, and are served through a Vercel-hosted control plane.",
+    body: "Projects receive wildcard ShelbyHost subdomains, can attach custom domains, and are served through the Shelby artifact gateway.",
   },
   {
     icon: Zap,
@@ -61,7 +61,7 @@ const pillars = [
 ];
 
 const implemented = [
-  "Email, Google, and GitHub authentication through Privy",
+  "Dynamic authentication with native Aptos wallet connections",
   "Managed Aptos account creation for every authenticated user",
   "Profile page with Aptos address, public key, and explicit private key export",
   "Project creation, upload validation, immutable content hashing, and deployment history",
@@ -70,7 +70,7 @@ const implemented = [
   "GitHub Actions build success/failure handling with upload/finalize endpoints",
   "PR preview records, deployment logs, and project environment variable UI",
   "Optional Shelby blob mirroring for finalized artifacts using the Shelby TypeScript SDK",
-  "Custom domain registration and verification flow for Vercel-hosted distribution",
+  "Custom domain verification with gateway-managed TLS",
 ];
 
 const fundingMilestones = [
@@ -115,10 +115,10 @@ function GrantBrief() {
           </h1>
           <p className="mt-6 text-lg leading-8 text-muted-foreground">
             ShelbyHost is a deployment control plane that brings familiar cloud hosting workflows to
-            decentralized storage. The app gives builders authentication, managed Aptos ownership,
-            GitHub-based builds, deployment history, wildcard subdomains, custom domains, PR
-            previews, environment variable management, and optional Shelby blob mirroring for build
-            artifacts.
+            decentralized storage. The app gives builders Dynamic authentication, connected Aptos
+            ownership, GitHub-based builds, deployment history, wildcard subdomains, custom domains,
+            PR previews, environment variable management, and optional Shelby blob mirroring for
+            build artifacts.
           </p>
           <div className="mt-8 flex flex-wrap gap-3">
             <Link
@@ -163,7 +163,10 @@ function GrantBrief() {
           </div>
           <div className="grid gap-2">
             {implemented.map((item) => (
-              <div key={item} className="flex items-start gap-3 rounded-md border border-border bg-card p-3">
+              <div
+                key={item}
+                className="flex items-start gap-3 rounded-md border border-border bg-card p-3"
+              >
                 <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-success" />
                 <p className="text-sm leading-6 text-muted-foreground">{item}</p>
               </div>
@@ -173,14 +176,21 @@ function GrantBrief() {
 
         <section className="mt-14 rounded-lg border border-border bg-card p-6">
           <ServerCog className="h-6 w-6 text-primary" />
-          <h2 className="mt-4 text-2xl font-extrabold text-foreground">
-            Technical architecture
-          </h2>
+          <h2 className="mt-4 text-2xl font-extrabold text-foreground">Technical architecture</h2>
           <div className="mt-5 grid gap-4 md:grid-cols-3">
             {[
-              ["Control plane", "Vercel-hosted React/TanStack app, Vercel Functions APIs, wildcard domain middleware, and Supabase service-role persistence."],
-              ["Build path", "GitHub Actions runs install/build, reports success or failure, uploads static artifacts, and finalizes deployment records."],
-              ["Ownership and storage", "Privy authenticates users, ShelbyHost creates managed Aptos accounts, and finalized assets can be mirrored to Shelby blobs."],
+              [
+                "Control plane",
+                "Netlify-hosted React/TanStack app and Functions API with service-role persistence in Supabase.",
+              ],
+              [
+                "Build path",
+                "A durable queue dispatches source to isolated gVisor workers, which build, validate and upload artifacts to Shelby.",
+              ],
+              [
+                "Ownership and storage",
+                "Dynamic verifies connected Aptos wallets. Immutable Shelby releases are promoted only after on-chain receipts pass verification.",
+              ],
             ].map(([title, body]) => (
               <div key={title} className="rounded-md border border-border bg-background/50 p-4">
                 <p className="font-bold text-foreground">{title}</p>
@@ -197,7 +207,10 @@ function GrantBrief() {
           </h2>
           <div className="mt-6 grid gap-4 md:grid-cols-2">
             {fundingMilestones.map((milestone) => (
-              <article key={milestone.title} className="rounded-lg border border-border bg-card p-6">
+              <article
+                key={milestone.title}
+                className="rounded-lg border border-border bg-card p-6"
+              >
                 <h3 className="text-lg font-bold text-foreground">{milestone.title}</h3>
                 <p className="mt-3 text-sm leading-6 text-muted-foreground">{milestone.body}</p>
               </article>

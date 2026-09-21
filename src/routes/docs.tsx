@@ -48,14 +48,14 @@ const topics = [
     icon: Wallet,
     description:
       "Understand sign-in, managed accounts, and the transactions for your first deployment.",
-    keywords: "privy aptos account wallet fee gas token testnet",
+    keywords: "dynamic aptos wallet fee gas token testnet",
   },
   {
     id: "github",
     title: "GitHub deployments",
     group: "BUILD & DEPLOY",
     icon: GitBranch,
-    description: "Connect your code to your site with a generated GitHub Actions workflow.",
+    description: "Connect source code to the isolated ShelbyHost build pipeline.",
     keywords: "git repository workflow branch push actions secret",
   },
   {
@@ -197,7 +197,7 @@ const headings: Record<string, [string, string][]> = {
   ],
   storage: [
     ["upload-staging", "Upload staging"],
-    ["shelby-mirroring", "Shelby mirroring"],
+    ["shelby-mirroring", "Shelby artifact storage"],
     ["serving-files", "Serving files"],
   ],
   hashes: [
@@ -218,7 +218,7 @@ function Article({ topic }: { topic: string }) {
           <div>
             <span>FROM LOCAL TO LIVE</span>
             <strong>Small setup. Big possibilities.</strong>
-            <p>A build folder, an account, and your next idea.</p>
+            <p>Application source, an account, and your next idea.</p>
           </div>
         </div>
         <section id="before-you-start">
@@ -226,8 +226,8 @@ function Article({ topic }: { topic: string }) {
             <span className="docs-step">1</span>Before you start
           </h2>
           <p>
-            You’ll need a static frontend with an <code>index.html</code> file, a ShelbyHost
-            account, and a funded Aptos testnet wallet for the initial registration.
+            You’ll need application source with a <code>package.json</code> build script, a
+            ShelbyHost account, and a funded Aptos testnet wallet for the initial registration.
           </p>
           <ul className="docs-checklist">
             <li>
@@ -236,7 +236,7 @@ function Article({ topic }: { topic: string }) {
             </li>
             <li>
               <Check />
-              Use your managed Aptos account or connect a compatible wallet.
+              Fund your connected Aptos wallet for user-approved publication.
             </li>
             <li>
               <Check />
@@ -244,9 +244,8 @@ function Article({ topic }: { topic: string }) {
             </li>
           </ul>
           <Note>
-            The deployment screen shows the fee. The current interface displays 0.1 Shelby USDT; the
-            exact coin type and amount are configured by the platform. A wallet balance in another
-            token cannot pay this fee.
+            The deployment screen shows the configured fee in token base units and its coin type. A
+            wallet balance in another token cannot pay this fee.
           </Note>
         </section>
         <section id="build-your-site">
@@ -263,8 +262,8 @@ function Article({ topic }: { topic: string }) {
             }
           />
           <p>
-            Upload the compiled output folder, rather than your source code or{" "}
-            <code>node_modules</code>.
+            Use this local build to check your configuration. Submit source code to ShelbyHost; the
+            worker runs its own build. Exclude <code>node_modules</code>, .git, and .env files.
           </p>
         </section>
         <section id="publish-your-build">
@@ -273,16 +272,21 @@ function Article({ topic }: { topic: string }) {
           </h2>
           <ol>
             <li>
-              Open <Link to="/deploy">Deploy</Link> and select your production output folder.
+              Open <Link to="/deploy">Deploy</Link> and connect GitHub or select your source folder.
             </li>
             <li>Enter your project name and an available subdomain.</li>
-            <li>Check the output validation, then start the deployment.</li>
-            <li>Confirm the fee transfer and Aptos registry transaction.</li>
-            <li>Wait for upload and finalization, then open your project URL.</li>
+            <li>
+              Set your root directory, build command and output directory, or use automatic
+              detection.
+            </li>
+            <li>Click Deploy to authorize the build and managed-wallet publication.</li>
+            <li>
+              Watch build stages and logs. Open your project URL when the deployment is Ready.
+            </li>
           </ol>
           <Note>
-            Keep the page open while uploading. If a transaction succeeds but the deployment fails,
-            keep its transaction hash for troubleshooting before paying again.
+            Once queued, the worker continues even if you close the page. Failed builds retain their
+            logs and never replace your current production deployment.
           </Note>
         </section>
         <section id="what-next">
@@ -378,20 +382,19 @@ function Article({ topic }: { topic: string }) {
         <section id="sign-in">
           <h2>Sign in</h2>
           <p>
-            Email, Google, and GitHub sign-in are provided through Privy. Your ShelbyHost projects
-            are associated with your authenticated account.
+            Dynamic provides authentication through a verified Aptos wallet. Your ShelbyHost
+            projects are associated with that Dynamic account.
           </p>
         </section>
         <section id="choose-a-wallet">
           <h2>Choose a wallet</h2>
           <p>
-            ShelbyHost creates a managed Aptos account for your profile. You can inspect its address
-            and public key in Settings, or connect an Aptos-compatible browser wallet.
+            Connect an Aptos-compatible wallet through Dynamic. Its verified address becomes the
+            publishing account for newly created projects.
           </p>
           <p>
-            Managed private keys are encrypted in server storage. The current deployment interface
-            retrieves your managed key to sign transactions in the browser when no extension signer
-            is selected. Treat key exports as full access to the wallet.
+            After Shelby stores and verifies a build, your wallet approves the fee and registry
+            transactions. ShelbyHost verifies both on chain and never receives your private key.
           </p>
         </section>
         <section id="initial-transactions">
@@ -446,14 +449,14 @@ function Article({ topic }: { topic: string }) {
           <h2>Publish a change</h2>
           <CodeBlock code={'git add .\ngit commit -m "Ship something new"\ngit push origin main'} />
           <p>
-            Replace <code>main</code> with your configured branch. GitHub Actions installs
-            dependencies, loads build environment variables, runs the build, uploads files, and
-            calls the finalization API.
+            Replace <code>main</code> with your configured branch. The workflow queues a source
+            build. ShelbyHost clones the pinned commit, installs dependencies, builds in isolation,
+            validates the output, stores it on Shelby, and publishes the successful version.
           </p>
           <Note>
-            Build logs and failures are available in GitHub Actions. ShelbyHost displays completion
-            summaries, not a live build-log stream. A failed workflow may leave a project marked
-            processing; inspect the Actions run and retry after fixing it.
+            Open the project’s Deployments tab to follow real stages and stdout/stderr logs,
+            refreshed every few seconds. Failures show their stage and exit code. The current
+            production deployment stays active when a new build fails.
           </Note>
         </section>
       </>
@@ -464,8 +467,8 @@ function Article({ topic }: { topic: string }) {
         <section id="enable-previews">
           <h2>Enable previews</h2>
           <p>
-            The generated GitHub Actions workflow includes a pull-request trigger for the configured
-            branch. Open a pull request to run the same build pipeline with the preview target.
+            Native pull-request preview builds are not currently supported. Successful source
+            deployments receive an immutable version URL, available from the deployment console.
           </p>
           <Note>
             Fork pull requests normally do not receive repository secrets. Because the deploy
@@ -475,18 +478,20 @@ function Article({ topic }: { topic: string }) {
         </section>
         <section id="preview-addresses">
           <h2>Preview addresses</h2>
-          <CodeBlock label="Example preview URL" code="https://your-project-pr-24.shelbyhost.xyz" />
+          <CodeBlock
+            label="Example preview URL"
+            code="https://v-<deployment-id-without-hyphens>.shelbyhost.xyz"
+          />
           <p>
-            Preview records use the project slug and pull-request number. A subsequent successful
-            build for the same preview updates its content hash.
+            Each successful deployment has a distinct version URL. Its bytes and content hash never
+            change; the stable project URL points to the active version.
           </p>
         </section>
         <section id="review-a-build">
           <h2>Review a build</h2>
           <p>
-            Open the preview URL from the project details, check the change, and merge when ready. A
-            push to your production branch runs a separate production deployment. Preview
-            finalization does not promote the preview to production.
+            Open a ready version from the deployment console to inspect it. Select Roll back on a
+            previous ready deployment to restore production without rebuilding.
           </p>
         </section>
       </>
@@ -590,29 +595,28 @@ function Article({ topic }: { topic: string }) {
         <section id="upload-staging">
           <h2>Upload staging</h2>
           <p>
-            Authenticated upload APIs issue signed URLs for Supabase Storage. Files are staged in
-            the public <code>shelby_nodes</code> bucket, under the deployment hash and file path.
+            Source is cloned or submitted to an isolated worker. Compiled output is validated before
+            leaving the sandbox. The old signed-upload finalization endpoints are disabled.
           </p>
         </section>
         <section id="shelby-mirroring">
-          <h2>Shelby mirroring</h2>
+          <h2>Shelby artifact storage</h2>
           <p>
-            When the platform enables Shelby storage and configures a funded signer, finalization
-            downloads staged assets and uploads them to Shelby blobs. A manifest maps site paths to
-            blob URLs.
+            The worker uploads compiled assets and an immutable manifest to Shelby Network. Every
+            artifact is read back and checked against its SHA-256 digest before publication.
           </p>
           <p>
-            Mirroring is optional. If required storage mode is enabled, a mirror failure fails
-            finalization. Otherwise, the platform can retain the Supabase version. The default blob
-            lifetime is 365 days and can be configured by the operator.
+            Shelby is required for every new deployment. Upload or verification errors fail the
+            release; there is no fallback storage. The default retention is 365 days, configured by
+            the operator.
           </p>
         </section>
         <section id="serving-files">
           <h2>Serving files</h2>
           <p>
-            The gateway looks up a project or domain, fetches the requested asset from the
-            configured backend, and returns it to the browser. Shelby-backed projects prefer their
-            blob manifest and have a Supabase fallback path.
+            The gateway resolves the hostname to the active immutable release, retrieves its Shelby
+            asset, verifies its digest, and serves it. Redeployment and rollback keep the same
+            project URL.
           </p>
           <Note>
             Content-addressed storage is not a promise of permanent hosting. Availability depends on

@@ -1,6 +1,6 @@
 import { Link } from "@tanstack/react-router";
 import { ArrowRight, ArrowUpRight, Github, Menu, X } from "lucide-react";
-import { usePrivy } from "@privy-io/react-auth";
+import { useAuth } from "../../lib/auth";
 import { useState, type ReactNode } from "react";
 import "../../public-pages.css";
 
@@ -34,7 +34,7 @@ export function DeployButton({
   className?: string;
   secondary?: boolean;
 }) {
-  const { authenticated, login } = usePrivy();
+  const { authenticated, login } = useAuth();
   const classes = `public-button ${secondary ? "button-outline" : "button-coral"} ${className}`;
   return authenticated ? (
     <Link className={classes} to="/deploy">
