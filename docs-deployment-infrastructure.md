@@ -12,11 +12,10 @@ Source → durable queue → clone pinned commit → install → typecheck/build
 validate → upload and read back Shelby blobs → confirm Aptos fee/registry →
 atomic publication → hostname gateway.
 
-The control plane runs on Vercel with existing Privy authentication. Netlify's
-existing config hosts only the frontend; it does not run the APIs or workers.
-Workers run on dedicated Linux VMs with Docker and gVisor (`runsc`). The gateway
-can run separately behind Caddy, or use the existing Vercel middleware/API setup
-if the operator configures wildcard domains there.
+The dashboard and control-plane APIs run on Netlify with Dynamic authentication
+and a native Aptos connector. Workers run on dedicated Linux VMs with Docker and
+gVisor (`runsc`). A separate Caddy gateway serves Shelby artifacts for the wildcard
+domain; see `infra/NETLIFY-SETUP.md` for the exact DNS and TLS configuration.
 
 ## Supported applications
 
@@ -44,17 +43,18 @@ for repositories larger than the 2 MiB source-upload limit.
    Install/register gVisor's `runsc` Docker runtime. No runc fallback is allowed.
 3. Install this repository and dependencies under `/opt/shelbyhost` on the dedicated
    worker VM. Configure `/etc/shelbyhost/worker.env` from `infra/worker.env.example`,
-   using the existing control-plane encryption keys. Protect this file (0600).
-   Fund the Shelby storage signer and managed deployment wallets on the configured
-   network. Set the deployed Aptos registry address, fee token and treasury.
+   using the existing GitHub encryption key. Protect this file (0600). Fund the
+   Shelby storage signer. Connected wallets authorize Aptos fees and registry
+   writes without exporting private keys to ShelbyHost.
 4. Install `infra/shelby-worker.service`. Its account requires Docker access and
    must have no unrelated workloads or credentials on the host. Each process runs
    one build at a time; add worker VMs for concurrency. Never expose Docker TCP.
 5. Install the gateway service on a separate host with `infra/gateway.env.example`.
    It needs the server-side database credential and Shelby read credential, **not**
    wallet encryption or signing keys. Keep it behind Caddy on loopback port 8090.
-6. Configure `*.shelbyhost.xyz` DNS to the gateway IP. Keep apex/www pointed at the
-   control plane. Install `infra/Caddyfile` and set ACME_EMAIL. Ports 80/443 must be
+6. Configure the wildcard CNAME and explicit gateway address described in
+   `infra/NETLIFY-SETUP.md`. Keep apex/www on Netlify. Build the pinned Caddy binary
+   and set its ACME email and Netlify DNS token. Ports 80/443 must be
    publicly reachable for ACME. The local ask endpoint permits certificates only
    for published projects/releases and verified custom domains. No per-project DNS
    records are necessary. Configure `SHELBY_CUSTOM_DOMAIN_TARGET` to a gateway DNS

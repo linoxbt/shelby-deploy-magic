@@ -2,13 +2,12 @@ import { isDeepStrictEqual } from "node:util";
 import { shelbyBlobUrl } from "./_lib/shelby";
 import { boundedBody } from "./_lib/bounded-body";
 import { z } from "zod";
-import { requireAuth } from "./_lib/auth";
+import { requireAuth, requireAptosAddress } from "./_lib/auth";
 import { deploymentColumns, buildConfigSchema } from "./_lib/build-contract";
 import { enqueueBuild, frozenSource } from "./_lib/build-queue";
 import { getOwnedProject, getSupabaseAdmin } from "./_lib/supabase";
 import { normalizeSlug } from "./_lib/normalize";
 import { errorResponse, methodNotAllowed, readJson } from "./_lib/http";
-import { ensureManagedAptosWallet } from "./_lib/wallet";
 
 export default async function handler(req: any, res: any) {
   try {
@@ -89,7 +88,7 @@ export default async function handler(req: any, res: any) {
           .eq("owner_id", auth.userId);
         if (countError) throw countError;
         if ((count || 0) >= 100) throw new Error("Project limit reached");
-        const wallet = await ensureManagedAptosWallet(db, auth.userId);
+        const walletAddress = requireAptosAddress(auth, String(body.walletAddress || ""));
         const result = await db
           .from("shelby_projects")
           .insert({
@@ -100,7 +99,8 @@ export default async function handler(req: any, res: any) {
             source: source.kind === "github" ? "github" : "drag-drop",
             content_hash: "",
             latest_version_url: "",
-            wallet_address: wallet.address,
+            wallet_address: walletAddress,
+            signer_mode: "connected",
             build_config: config,
             framework: "auto",
             build_output: config.outputDirectory || "auto",

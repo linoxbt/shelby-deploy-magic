@@ -4,6 +4,7 @@
     "src/**/*.tsx",
     "api/**/*.ts",
     "services/**/*.ts",
+    "netlify/**/*.ts",
     "middleware.ts",
     "vite.config.ts",
     "eslint.config.js"

@@ -1,5 +1,7 @@
+import { Aptos, AptosConfig, Network } from "@aptos-labs/ts-sdk";
+import { useAptosSession, AptosWalletButton } from "./AptosWallet";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { usePrivy } from "@privy-io/react-auth";
+import { useAuth } from "../../lib/auth";
 import { ArrowUpRight, Clock, RefreshCcw, RotateCcw, Terminal } from "lucide-react";
 import { apiRequest } from "../../lib/api";
 import { useShelbyHost } from "../../context/ShelbyHostContext";
@@ -51,7 +53,9 @@ const stages = [
   "ready",
 ];
 export function DeploymentConsole({ slug }: { slug: string }) {
-  const { getAccessToken } = usePrivy(),
+  const wallet = useAptosSession();
+  const [publicationError, setPublicationError] = useState("");
+  const { getAccessToken } = useAuth(),
     { refreshProjects } = useShelbyHost();
   const [releases, setReleases] = useState<Release[]>([]),
     [active, setActive] = useState<string>(),
@@ -164,6 +168,89 @@ export function DeploymentConsole({ slug }: { slug: string }) {
       await refreshProjects();
     } catch (e) {
       setError((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+  async function publishRelease() {
+    if (!selectedRelease) return;
+    setBusy(true);
+    setPublicationError("");
+    const id = selectedRelease.id,
+      key = `shelby-publication:${id}`;
+    try {
+      const info = await apiRequest<{
+        walletAddress: string;
+        projectName: string;
+        contentHash: string;
+        paymentTxHash?: string;
+        network: string;
+        treasury: string;
+        registry: string;
+        coinType: string;
+        fee: string;
+      }>(`/api/publish?slug=${encodeURIComponent(slug)}&deploymentId=${id}`, {}, getAccessToken);
+      const normalize = (v: string) => v.toLowerCase().replace(/^0x0*/, "");
+      if (!wallet.address || normalize(wallet.address) !== normalize(info.walletAddress))
+        throw Error("Connect the Aptos wallet that owns this project");
+      if (!["testnet", "mainnet", "devnet"].includes(info.network))
+        throw Error("Unsupported Aptos network configuration");
+      const client = new Aptos(new AptosConfig({ network: info.network as Network }));
+      const receipts = JSON.parse(localStorage.getItem(key) || "{}");
+      let payment = info.paymentTxHash || receipts.payment;
+      if (!payment) {
+        payment = await wallet.signAndSubmit(
+          {
+            function: "0x1::coin::transfer",
+            typeArguments: [info.coinType],
+            functionArguments: [info.treasury, info.fee],
+          },
+          info.network,
+        );
+        receipts.payment = payment;
+        localStorage.setItem(key, JSON.stringify(receipts));
+      }
+      await client.waitForTransaction({
+        transactionHash: payment,
+        options: { checkSuccess: true },
+      });
+      await apiRequest(
+        "/api/publish",
+        {
+          method: "POST",
+          body: { slug, deploymentId: id, action: "record-fee", paymentTxHash: payment },
+        },
+        getAccessToken,
+      );
+      let registry = receipts.registry;
+      if (!registry) {
+        registry = await wallet.signAndSubmit(
+          {
+            function: `${info.registry}::registry::register_project`,
+            functionArguments: [info.projectName, info.contentHash],
+          },
+          info.network,
+        );
+        receipts.registry = registry;
+        localStorage.setItem(key, JSON.stringify(receipts));
+      }
+      await client.waitForTransaction({
+        transactionHash: registry,
+        options: { checkSuccess: true },
+      });
+      await apiRequest(
+        "/api/publish",
+        {
+          method: "POST",
+          body: { slug, deploymentId: id, paymentTxHash: payment, registryTxHash: registry },
+        },
+        getAccessToken,
+      );
+      localStorage.removeItem(key);
+      await load();
+      await refreshProjects();
+    } catch (e) {
+      setPublicationError((e as Error).message);
     } finally {
       setBusy(false);
     }
@@ -281,6 +368,28 @@ export function DeploymentConsole({ slug }: { slug: string }) {
                   : selectedRelease.stage}
               </p>
             </div>
+            {selectedRelease.status === "awaiting_signature" && (
+              <div className="rounded-lg border border-primary bg-primary/10 p-4 space-y-3">
+                <strong>Build stored. Awaiting Aptos approval.</strong>
+                <p className="text-sm">
+                  Approve the project fee and register this release's content hash. Production stays
+                  unchanged until the receipts and Shelby manifest are verified.
+                </p>
+                <AptosWalletButton />
+                <button
+                  disabled={busy || !wallet.address}
+                  onClick={publishRelease}
+                  className="rounded bg-primary px-4 py-2 font-bold disabled:opacity-50"
+                >
+                  {busy ? "Confirming publication…" : "Approve Aptos publication"}
+                </button>
+                {publicationError && (
+                  <p role="alert" className="text-destructive whitespace-pre-wrap">
+                    {publicationError}
+                  </p>
+                )}
+              </div>
+            )}
             {selectedRelease.error_message && (
               <div
                 role="alert"

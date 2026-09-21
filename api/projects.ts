@@ -2,7 +2,7 @@ import { deploymentColumns } from "./_lib/build-contract";
 import { requireAuth } from "./_lib/auth";
 import { errorResponse, methodNotAllowed } from "./_lib/http";
 import { getSupabaseAdmin } from "./_lib/supabase";
-import { ensureManagedAptosWallet, serializeWallet } from "./_lib/wallet";
+import { connectedWallet } from "./wallets";
 
 export default async function handler(req: any, res: any) {
   try {
@@ -28,9 +28,9 @@ export default async function handler(req: any, res: any) {
 
       if (error) throw error;
 
-      const wallet = await ensureManagedAptosWallet(supabase, auth.userId);
+      const wallet = await connectedWallet(auth);
 
-      return res.status(200).json({ projects: data || [], wallet: serializeWallet(wallet) });
+      return res.status(200).json({ projects: data || [], wallet });
     }
 
     if (req.method === "POST") {

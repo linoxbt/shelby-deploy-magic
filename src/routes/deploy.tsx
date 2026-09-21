@@ -1,6 +1,7 @@
+import { useAptosSession, AptosWalletButton } from "../components/shelbyhost/AptosWallet";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { usePrivy } from "@privy-io/react-auth";
+import { useAuth } from "../lib/auth";
 import { Github, UploadCloud, Loader2, ArrowRight } from "lucide-react";
 import { AppShell } from "../components/shelbyhost/AppShell";
 import { useShelbyHost } from "../context/ShelbyHostContext";
@@ -10,9 +11,10 @@ export const Route = createFileRoute("/deploy")({
   head: () => ({ meta: [{ title: "Deploy application source — ShelbyHost" }] }),
 });
 function Deploy() {
-  const { authenticated, ready, getAccessToken } = usePrivy(),
+  const { address } = useAptosSession();
+  const { authenticated, ready, getAccessToken } = useAuth(),
     navigate = useNavigate();
-  const { wallet, fetchGithubRepos, linkGithub, refreshProjects } = useShelbyHost();
+  const { fetchGithubRepos, linkGithub, refreshProjects } = useShelbyHost();
   const [mode, setMode] = useState<"github" | "upload">("github"),
     [repo, setRepo] = useState(""),
     [branch, setBranch] = useState("main"),
@@ -81,6 +83,7 @@ function Deploy() {
         {
           method: "POST",
           body: {
+            walletAddress: address,
             name,
             slug: slug || name,
             source,
@@ -245,8 +248,9 @@ function Deploy() {
         </div>
         <div className="mt-5 rounded-lg border border-border bg-card p-5 text-sm">
           <strong>Publishing account and fee</strong>
+          <AptosWalletButton />
           <p className="mt-2 break-all font-mono text-xs">
-            {wallet?.address || "Loading your managed Aptos account…"}
+            {address || "Connect your Aptos wallet"}
           </p>
           <p className="mt-2 break-all">
             {publishing
@@ -254,10 +258,9 @@ function Deploy() {
               : "Loading publishing fee…"}
           </p>
           <p className="mt-2 text-muted-foreground">
-            Fund your managed Aptos account with APT for gas and the configured deployment-fee
-            token. By deploying, you authorize the initial project fee and registration of the built
-            content hash. Redeployments register a new hash without another project-creation fee. A
-            failed build is never published.
+            Connect an Aptos wallet funded with APT for gas and the fee token. After the build is
+            stored on Shelby, approve the project fee and content-hash registration in your wallet.
+            Redeployments reuse the project fee receipt.
           </p>
         </div>
         {error && (
@@ -270,7 +273,9 @@ function Deploy() {
         )}
         <button
           onClick={deploy}
-          disabled={busy || !name.trim() || (mode === "github" ? !repo.trim() : !files.length)}
+          disabled={
+            busy || !address || !name.trim() || (mode === "github" ? !repo.trim() : !files.length)
+          }
           className="mt-6 flex items-center gap-3 rounded bg-primary px-6 py-3 font-bold disabled:opacity-50"
         >
           {busy ? <Loader2 className="animate-spin" size={17} /> : <ArrowRight size={17} />}{" "}

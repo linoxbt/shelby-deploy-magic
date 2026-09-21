@@ -13,21 +13,12 @@ type DomainPayload = {
 };
 
 function customDomainTarget() {
-  return process.env.SHELBY_CUSTOM_DOMAIN_TARGET || "cname.vercel-dns.com";
+  return process.env.SHELBY_CUSTOM_DOMAIN_TARGET || `gateway.${appBaseDomain()}`;
 }
 
 async function hasValidDns(domain: string, target: string) {
   const expected = new Set(
-    [
-      target,
-      customDomainTarget(),
-      "cname.vercel-dns.com",
-      "cname.vercel-dns-0.com",
-      appBaseDomain(),
-      process.env.VERCEL_PROJECT_PRODUCTION_URL,
-    ]
-      .filter(Boolean)
-      .map((value) => value!.replace(/\.$/, "").toLowerCase()),
+    [target, customDomainTarget()].map((value) => value.replace(/\.$/, "").toLowerCase()),
   );
 
   const records: string[] = [];
@@ -39,11 +30,7 @@ async function hasValidDns(domain: string, target: string) {
 
   return records.some((record) => {
     const normalized = record.toLowerCase();
-    return (
-      expected.has(normalized) ||
-      normalized.endsWith(".vercel-dns.com") ||
-      /^cname\.vercel-dns-\d+\.com$/.test(normalized)
-    );
+    return expected.has(normalized);
   });
 }
 
@@ -67,7 +54,10 @@ export default async function handler(req: any, res: any) {
         throw new Error("Forbidden: domain is registered to another project");
       const verificationToken =
         existing.data?.verification_token || randomBytes(24).toString("hex");
-      const vercelDomain = await addVercelProjectDomain(domain);
+      const vercelDomain =
+        process.env.SHELBY_DOMAIN_PROVIDER === "vercel"
+          ? await addVercelProjectDomain(domain)
+          : { configured: false };
       const mapping = {
         project_id: project.id,
         domain,
@@ -90,7 +80,7 @@ export default async function handler(req: any, res: any) {
         ok: true,
         verificationToken,
         vercelDomain,
-        message: `Domain registered. Point DNS to ${customDomainTarget()} or your Vercel-assigned target, then verify.`,
+        message: `Domain registered. Point DNS to ${customDomainTarget()}, then verify.`,
       });
     }
 
@@ -109,7 +99,10 @@ export default async function handler(req: any, res: any) {
       if (mappingError) throw mappingError;
       if (!mapping) throw new Error("Domain mapping not found");
 
-      const vercelDomain = await verifyVercelProjectDomain(domain);
+      const vercelDomain =
+        process.env.SHELBY_DOMAIN_PROVIDER === "vercel"
+          ? await verifyVercelProjectDomain(domain)
+          : { configured: false };
       const txt = await dns.resolveTxt(`_shelbyhost.${domain}`).catch(() => [] as string[][]);
       const ownership =
         !!mapping.verification_token &&

@@ -27,7 +27,7 @@ import {
   Zap,
 } from "lucide-react";
 import { useEffect, useState } from "react";
-import { usePrivy } from "@privy-io/react-auth";
+import { useAuth } from "../lib/auth";
 import { apiRequest } from "../lib/api";
 import { AppShell, formatBytes, StatusBadge } from "../components/shelbyhost/AppShell";
 import { findFrameworkPreset, frameworkPresets } from "../lib/framework-presets";
@@ -68,7 +68,7 @@ function ProjectDetail() {
     triggerGithubDeploy,
     verifyDomain,
   } = useShelbyHost();
-  const { authenticated, ready, getAccessToken } = usePrivy();
+  const { authenticated, ready, getAccessToken } = useAuth();
 
   useEffect(() => {
     if (ready && !authenticated) {

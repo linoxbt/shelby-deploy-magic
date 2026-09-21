@@ -226,6 +226,21 @@ export async function executeJob(job: any, db = getSupabaseAdmin()) {
     if (storage.hash !== artifactManifest(artifacts.files).hash)
       throw new Error("Artifact hash changed during storage");
     await advance("publishing");
+    if (project.signer_mode === "connected") {
+      log(
+        "system",
+        "Build and Shelby storage verified. Waiting for the owner to approve Aptos publication in their connected wallet.",
+      );
+      await update();
+      clearInterval(heartbeat);
+      await chain;
+      await rpc("shelby_wait_signature", {
+        p_id: job.deployment_id,
+        p_lease: job.lease_token,
+        p_release: { ...storage, versionUrl: releaseUrl(job.deployment_id) },
+      });
+      return { id: job.deployment_id, status: "awaiting_signature" };
+    }
     log("system", "Confirming deployment fee and registering artifact hash on Aptos");
     await registerRelease(db, project, storage.hash, (patch) => update(undefined, patch));
     controller.signal.throwIfAborted();

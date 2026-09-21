@@ -36,3 +36,34 @@ BEGIN
  IF EXISTS(SELECT 1 FROM pg_policies WHERE tablename LIKE 'shelby_%' AND 'authenticated'=ANY(roles)) THEN RAISE EXCEPTION 'browser RLS policy remains'; END IF;
  RAISE NOTICE 'PASS: event deduplication, stage ordering, atomic publication, failure preservation, ownership, rollback, stale promotion, immutable versions, browser isolation';
 END $$;
+
+DO $$
+DECLARE p uuid; p2 uuid; d uuid; j public.shelby_build_jobs; promoted boolean; s text;
+BEGIN
+ INSERT INTO shelby_projects(name,slug,owner_id,content_hash,latest_version_url,signer_mode,wallet_address)
+ VALUES('Connected','connected-test','dynamic:user-a','','','connected','0x1') RETURNING id INTO p;
+ d:=shelby_enqueue(p,'dynamic:user-a','{"kind":"upload"}','{}','{}');
+ SELECT * INTO j FROM shelby_claim('connected-worker');
+ FOREACH s IN ARRAY ARRAY['cloning','installing','building','validating','uploading','publishing'] LOOP
+   PERFORM shelby_update_job(d,j.lease_token,s);
+ END LOOP;
+ PERFORM shelby_wait_signature(d,j.lease_token,jsonb_build_object(
+   'hash',repeat('d',64),'owner','0x456',
+   'manifest',jsonb_build_array(jsonb_build_object('path','/index.html','size',31,'type','text/html')),
+   'manifestUrl','https://fixture/connected-manifest','versionUrl','https://fixture/connected-version',
+   'size',31,'files','[]'::jsonb));
+ IF (SELECT status FROM shelby_deployments WHERE id=d)<>'awaiting_signature' THEN RAISE EXCEPTION 'connected build did not wait for signature'; END IF;
+ IF (SELECT active_deployment_id FROM shelby_projects WHERE id=p) IS NOT NULL THEN RAISE EXCEPTION 'unsigned build reached production'; END IF;
+ PERFORM shelby_record_fee(p,'dynamic:user-a','0xfee');
+ promoted:=shelby_wallet_publish(d,'dynamic:user-a','0xfee','0xregistry');
+ IF NOT promoted OR (SELECT active_deployment_id FROM shelby_projects WHERE id=p)<>d THEN RAISE EXCEPTION 'wallet publication failed'; END IF;
+ INSERT INTO shelby_projects(name,slug,owner_id,content_hash,latest_version_url,signer_mode,wallet_address)
+ VALUES('Other','connected-other','dynamic:user-b','','','connected','0x2') RETURNING id INTO p2;
+ BEGIN
+   PERFORM shelby_record_fee(p2,'dynamic:user-b','0xfee');
+   RAISE EXCEPTION 'payment receipt reused across projects';
+ EXCEPTION WHEN raise_exception THEN
+   IF SQLERRM='payment receipt reused across projects' THEN RAISE; END IF;
+ END;
+ RAISE NOTICE 'PASS: connected-wallet pause, atomic promotion, and fee replay protection';
+END $$;

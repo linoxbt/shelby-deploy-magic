@@ -48,7 +48,7 @@ const topics = [
     icon: Wallet,
     description:
       "Understand sign-in, managed accounts, and the transactions for your first deployment.",
-    keywords: "privy aptos account wallet fee gas token testnet",
+    keywords: "dynamic aptos wallet fee gas token testnet",
   },
   {
     id: "github",
@@ -236,7 +236,7 @@ function Article({ topic }: { topic: string }) {
             </li>
             <li>
               <Check />
-              Fund your managed Aptos account for worker-signed publication.
+              Fund your connected Aptos wallet for user-approved publication.
             </li>
             <li>
               <Check />
@@ -382,20 +382,19 @@ function Article({ topic }: { topic: string }) {
         <section id="sign-in">
           <h2>Sign in</h2>
           <p>
-            Email, Google, and GitHub sign-in are provided through Privy. Your ShelbyHost projects
-            are associated with your authenticated account.
+            Dynamic provides authentication through a verified Aptos wallet. Your ShelbyHost
+            projects are associated with that Dynamic account.
           </p>
         </section>
         <section id="choose-a-wallet">
           <h2>Choose a wallet</h2>
           <p>
-            ShelbyHost creates a managed Aptos account for your profile. You can inspect its address
-            and public key in Settings, or connect an Aptos-compatible browser wallet.
+            Connect an Aptos-compatible wallet through Dynamic. Its verified address becomes the
+            publishing account for newly created projects.
           </p>
           <p>
-            Managed private keys are encrypted in server storage. The current deployment interface
-            retrieves your managed key to sign transactions in the browser when no extension signer
-            is selected. Treat key exports as full access to the wallet.
+            After Shelby stores and verifies a build, your wallet approves the fee and registry
+            transactions. ShelbyHost verifies both on chain and never receives your private key.
           </p>
         </section>
         <section id="initial-transactions">

@@ -1,215 +1,89 @@
-import { useEffect, useState, createContext, useContext } from "react";
-import { ChevronDown, Wallet, Copy, Check } from "lucide-react";
-import { usePrivy, useWallets } from "@privy-io/react-auth";
-import { useShelbyHost } from "../../context/ShelbyHostContext";
-
-// Privy uses EVM by default but supports Aptos.
-// We'll map the Privy state to our ShelbyHost logic.
-
-let cachedAddress: string | undefined = undefined;
-const listeners = new Set<(addr: string | undefined) => void>();
-
-export function setCachedAddress(address: string | undefined) {
-  if (cachedAddress !== address) {
-    cachedAddress = address;
-    listeners.forEach((l) => l(address));
-  }
-}
-
-let cachedSignAndSubmit: ((tx: any) => Promise<any>) | undefined = undefined;
-
-export function setCachedSignAndSubmit(fn: ((tx: any) => Promise<any>) | undefined) {
-  cachedSignAndSubmit = fn;
-}
-
-export function getAptosSignAndSubmit() {
-  return cachedSignAndSubmit;
-}
-
-export function useAptosAddress() {
-  const [address, setAddress] = useState<string | undefined>(cachedAddress);
-  useEffect(() => {
-    listeners.add(setAddress);
-    return () => {
-      listeners.delete(setAddress);
-    };
-  }, []);
-  return address;
-}
-
-export function AptosProvider({ children }: { children: React.ReactNode }) {
-  const { user, authenticated, ready } = usePrivy();
-  const { wallets } = useWallets();
-
-  // Find the first Aptos wallet if available
-  const aptosWallet = wallets.find(
-    (w) =>
-      w.walletClientType === "petra" ||
-      w.walletClientType === "martian" ||
-      w.walletClientType.toLowerCase().includes("aptos"),
+import { useDynamicContext } from "@dynamic-labs/sdk-react-core";
+import { isAptosWallet } from "@dynamic-labs/aptos";
+import { createContext, useCallback, useContext, useEffect, useState } from "react";
+import { Wallet, Copy, LogOut } from "lucide-react";
+import { dynamicConfigured, useAuth } from "../../lib/auth";
+import { toast } from "sonner";
+import type { InputGenerateTransactionPayloadData } from "@aptos-labs/ts-sdk";
+type AptosSession = {
+  address?: string;
+  signAndSubmit: (data: InputGenerateTransactionPayloadData, network: string) => Promise<string>;
+  connect: () => void;
+};
+const Context = createContext<AptosSession>({
+  signAndSubmit: async () => {
+    throw Error("Connect an Aptos wallet");
+  },
+  connect: () => {},
+});
+let cachedSignAndSubmit: ((tx: any) => Promise<any>) | undefined;
+export const getAptosSignAndSubmit = () => cachedSignAndSubmit;
+export const useAptosSession = () => useContext(Context);
+export const useAptosAddress = () => useAptosSession().address;
+function ConnectedProvider({ children }: { children: React.ReactNode }) {
+  const { primaryWallet, setShowAuthFlow } = useDynamicContext();
+  const wallet = primaryWallet && isAptosWallet(primaryWallet) ? primaryWallet : undefined;
+  const signAndSubmit = useCallback(
+    async (data: InputGenerateTransactionPayloadData, network: string) => {
+      if (!wallet) throw Error("Connect and authenticate an Aptos wallet");
+      const info = await wallet.getNetworkInfo();
+      if (info?.name?.toLowerCase() !== network.toLowerCase())
+        throw Error(`Switch your Aptos wallet to ${network} before signing`);
+      return wallet.signAndSubmitTransaction(
+        data as Parameters<typeof wallet.signAndSubmitTransaction>[0],
+      );
+    },
+    [wallet],
   );
-
-  // Use Privy's linked Aptos address, or the detected wallet address, or fallback to window.aptos if available
-  const [injectedAddress, setInjectedAddress] = useState<string | undefined>();
-
   useEffect(() => {
-    const checkInjected = async () => {
-      // @ts-ignore
-      if (window.aptos) {
-        try {
-          // @ts-ignore
-          const account = await window.aptos.account();
-          if (account?.address) setInjectedAddress(account.address);
-        } catch (e) {
-          // Might not be connected yet
-        }
-      }
+    cachedSignAndSubmit = wallet
+      ? async (tx: any) => ({
+          hash: await signAndSubmit(tx.data ?? tx, import.meta.env.VITE_APTOS_NETWORK || "testnet"),
+        })
+      : undefined;
+    return () => {
+      cachedSignAndSubmit = undefined;
     };
-    checkInjected();
-  }, []);
-
-  const address = (user as any)?.aptos?.address || aptosWallet?.address || injectedAddress;
-
-  useEffect(() => {
-    if (ready) {
-      setCachedAddress(authenticated || !!injectedAddress ? address : undefined);
-
-      // Prefer injected window.aptos (Petra, Martian, etc.) for signing
-      // since the Privy Aptos wallet adapter path is more complex.
-      if (injectedAddress) {
-        setCachedSignAndSubmit(async (tx: any) => {
-          // @ts-ignore
-          if (!window.aptos)
-            throw new Error("Aptos wallet extension not found. Please install Petra or Martian.");
-          // @ts-ignore
-          const result = await window.aptos.signAndSubmitTransaction(tx.data ?? tx);
-          if (!result?.hash) throw new Error("Transaction failed: no hash returned from wallet.");
-          return result;
-        });
-      } else if (aptosWallet) {
-        // Privy embedded wallet path
-        setCachedSignAndSubmit(async (tx: any) => {
-          // @ts-ignore
-          const provider = (await aptosWallet.getProvider()) as any;
-          if (!provider?.signAndSubmitTransaction) {
-            throw new Error("Connected wallet does not support Aptos signing.");
-          }
-          const result = await provider.signAndSubmitTransaction(tx.data ?? tx);
-          if (!result?.hash) throw new Error("Transaction failed: no hash returned from wallet.");
-          return result;
-        });
-      } else {
-        // No wallet connected — clear sign function
-        setCachedSignAndSubmit(undefined);
-      }
-    }
-  }, [ready, authenticated, address, aptosWallet, injectedAddress]);
-
-  return <>{children}</>;
+  }, [signAndSubmit, wallet]);
+  return (
+    <Context.Provider
+      value={{ address: wallet?.address, signAndSubmit, connect: () => setShowAuthFlow(true) }}
+    >
+      {children}
+    </Context.Provider>
+  );
 }
-
+export function AptosProvider({ children }: { children: React.ReactNode }) {
+  return dynamicConfigured ? <ConnectedProvider>{children}</ConnectedProvider> : <>{children}</>;
+}
 export function AptosWalletButton({ compact = false }: { compact?: boolean }) {
-  const { authenticated, user, ready } = usePrivy();
-  const { wallet } = useShelbyHost();
-  const { wallets } = useWallets();
+  const { address, connect } = useAptosSession(),
+    { logout } = useAuth();
   const [open, setOpen] = useState(false);
-  const [copied, setCopied] = useState(false);
-  const [injectedAddress, setInjectedAddress] = useState<string | undefined>();
-
-  useEffect(() => {
-    const checkInjected = async () => {
-      // @ts-ignore
-      if (window.aptos) {
-        try {
-          // @ts-ignore
-          const account = await window.aptos.account();
-          if (account?.address) setInjectedAddress(account.address);
-        } catch (e) {
-          // Silently fail if wallet check fails
-        }
-      }
-    };
-    checkInjected();
-  }, []);
-
-  const aptosWallet = wallets.find((w) => w.walletClientType.toLowerCase().includes("aptos"));
-  const address =
-    (user as any)?.aptos?.address || aptosWallet?.address || injectedAddress || wallet?.address;
-  const displayAddress = address ? `${address.slice(0, 6)}...${address.slice(-4)}` : "";
-
-  const copyAddress = async () => {
-    if (!address) return;
-    await navigator.clipboard.writeText(address);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
-
-  if (!ready)
-    return (
-      <button
-        disabled
-        className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md border border-border bg-card px-3 py-2 text-sm font-bold text-muted-foreground opacity-50"
-      >
-        <Wallet className="h-4 w-4" /> Loading...
-      </button>
-    );
-
-  if (!authenticated && !injectedAddress) {
-    return (
-      <span className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md border border-border bg-card px-3 py-2 text-sm font-bold text-muted-foreground">
-        <Wallet className="h-4 w-4" />
-        Account pending
-      </span>
-    );
-  }
-
-  if (compact) {
-    return (
-      <button
-        onClick={() => setOpen(!open)}
-        className="flex items-center gap-2 rounded-full border border-border bg-background/50 px-3 py-1.5 text-xs font-bold text-foreground hover:border-primary"
-      >
-        <div className="h-2 w-2 rounded-full bg-success shadow-glow" />
-        {displayAddress || "Account"}
-      </button>
-    );
-  }
-
   return (
     <div className="relative">
       <button
-        onClick={() => setOpen(!open)}
-        className="flex w-full items-center justify-between rounded-md border border-border bg-card p-3 transition hover:border-primary"
+        onClick={() => (address ? setOpen(!open) : connect())}
+        className="flex items-center gap-2 rounded-md border border-border bg-card px-3 py-2 text-sm font-bold"
       >
-        <div className="flex items-center gap-3">
-          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/10 text-primary">
-            <Wallet className="h-4 w-4" />
-          </div>
-          <div className="text-left">
-            <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider">
-              {wallet?.managed ? "Shelby Vault" : `Connected ${injectedAddress && !authenticated ? "Extension" : "Privy"}`}
-            </p>
-            <p className="font-mono text-sm font-bold text-foreground">
-              {displayAddress || "Account ready"}
-            </p>
-          </div>
-        </div>
-        <ChevronDown
-          className={`h-4 w-4 text-muted-foreground transition-transform ${open ? "rotate-180" : ""}`}
-        />
+        <Wallet size={16} />
+        {address ? `${address.slice(0, 6)}…${address.slice(-4)}` : "Connect Aptos wallet"}
       </button>
-
-      {open && (
-        <div className="absolute right-0 top-full z-50 mt-2 w-full min-w-[200px] rounded-lg border border-border bg-card p-2 shadow-xl animate-in fade-in slide-in-from-top-2">
+      {open && address && (
+        <div className="absolute right-0 top-full z-50 mt-2 min-w-52 rounded border border-border bg-card p-2 shadow-xl">
+          <p className="px-2 py-1 text-xs text-muted-foreground">Connected through Dynamic</p>
           <button
-            onClick={copyAddress}
-            className="flex w-full items-center justify-between rounded-md px-3 py-2 text-sm font-medium text-foreground hover:bg-secondary"
+            className="flex items-center gap-2 p-2 text-sm"
+            onClick={() =>
+              navigator.clipboard.writeText(address).then(() => toast.success("Address copied"))
+            }
           >
-            <div className="flex items-center gap-2">
-              <Copy className="h-4 w-4 text-muted-foreground" />
-              Copy Address
-            </div>
-            {copied && <Check className="h-4 w-4 text-success" />}
+            <Copy size={14} />
+            Copy address
+          </button>
+          <button className="flex items-center gap-2 p-2 text-sm" onClick={() => logout()}>
+            <LogOut size={14} />
+            Disconnect
           </button>
         </div>
       )}

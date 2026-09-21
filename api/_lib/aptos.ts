@@ -28,8 +28,10 @@ function aptosHeaders() {
 }
 
 async function fetchTransaction(hash: string): Promise<AptosTransaction> {
+  if (!/^0x[a-fA-F0-9]{64}$/.test(hash)) throw new Error("Invalid Aptos transaction hash");
   const response = await fetch(`${aptosFullnodeUrl()}/transactions/by_hash/${hash}`, {
     headers: aptosHeaders(),
+    signal: AbortSignal.timeout(15000),
   });
   if (!response.ok) {
     throw new Error(`Aptos transaction ${hash} was not found`);
@@ -50,7 +52,6 @@ export async function verifyDeploymentTransactions({
   paymentTxHash?: string;
   registryTxHash?: string;
 }) {
-  if (process.env.SKIP_CHAIN_VERIFICATION === "true") return;
   if (!walletAddress) throw new Error("Wallet address is required for chain verification");
   if (!paymentTxHash || !registryTxHash) {
     throw new Error("Payment and registry transaction hashes are required");
@@ -64,6 +65,33 @@ export async function verifyDeploymentTransactions({
     throw new Error("Missing chain configuration for deployment verification");
   }
 
+  await verifyDeploymentFee(walletAddress, paymentTxHash);
+  const sender = normalizeAddress(walletAddress);
+  const registry = await fetchTransaction(registryTxHash);
+  if (!registry.success) throw new Error("Registry transaction failed");
+  if (normalizeAddress(registry.sender || "") !== sender) {
+    throw new Error("Registry transaction sender does not match connected wallet");
+  }
+  const [moduleAddress, moduleName, functionName] = (registry.payload?.function || "").split("::");
+  if (
+    normalizeAddress(moduleAddress || "") !== normalizeAddress(registryAddress) ||
+    moduleName !== "registry" ||
+    functionName !== "register_project"
+  ) {
+    throw new Error("Registry transaction called the wrong function");
+  }
+  if (String(registry.payload?.arguments?.[0] || "") !== projectName) {
+    throw new Error("Registry transaction project name does not match");
+  }
+  if (String(registry.payload?.arguments?.[1] || "") !== contentHash) {
+    throw new Error("Registry transaction content hash does not match");
+  }
+}
+
+export async function verifyDeploymentFee(walletAddress: string, paymentTxHash: string) {
+  const treasuryAddress = requireEnv("TREASURY_ADDRESS"),
+    usdtCoinType = requireEnv("USDT_COIN_TYPE"),
+    deployFee = process.env.DEPLOY_FEE || "10000";
   const sender = normalizeAddress(walletAddress);
   const payment = await fetchTransaction(paymentTxHash);
   if (!payment.success) throw new Error("Deployment fee transaction failed");
@@ -85,21 +113,5 @@ export async function verifyDeploymentTransactions({
   if (String(payment.payload.arguments?.[1] || "") !== deployFee) {
     throw new Error("Deployment fee transaction used the wrong fee amount");
   }
-
-  const registry = await fetchTransaction(registryTxHash);
-  if (!registry.success) throw new Error("Registry transaction failed");
-  if (normalizeAddress(registry.sender || "") !== sender) {
-    throw new Error("Registry transaction sender does not match connected wallet");
-  }
-  if (registry.payload?.function !== `${registryAddress}::registry::register_project`) {
-    throw new Error("Registry transaction called the wrong function");
-  }
-  if (String(registry.payload.arguments?.[0] || "") !== projectName) {
-    throw new Error("Registry transaction project name does not match");
-  }
-  if (String(registry.payload.arguments?.[1] || "") !== contentHash) {
-    throw new Error("Registry transaction content hash does not match");
-  }
 }
-
 export { requireEnv };

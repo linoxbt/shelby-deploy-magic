@@ -14,7 +14,7 @@ immutable version URL; rollback changes the production pointer without rebuildin
 
 ## Components
 
-- React/TanStack dashboard with Privy authentication, owned projects, GitHub
+- React/TanStack dashboard with Dynamic authentication and native Aptos wallets, owned projects, GitHub
   integration, build settings, environment variables, live polling of logs and history.
 - Supabase database with a durable build queue, worker leases, immutable release
   records and transactional promotion/rollback. No browser database writes.
@@ -22,7 +22,7 @@ immutable version URL; rollback changes the production pointer without rebuildin
   filesystem, network, duration, artifact and log limits.
 - Mandatory Shelby artifact storage with manifests and read-back hash verification.
   New deployments cannot fall back to another backend.
-- Aptos managed-wallet publication, deployment fee receipts and registry integrity.
+- Connected Aptos wallet publication, durable fee receipts and registry integrity.
 - Wildcard hostname gateway, stable project URLs, version URLs and verified custom domains.
 
 ## Development
@@ -36,9 +36,9 @@ npm run build
 npm run test:deployment
 ```
 
-Existing Privy and Supabase frontend variables remain necessary. The API handlers
-run on Vercel; `netlify.toml` builds only the frontend. A static frontend deployment
-alone does not provide a build worker, APIs, Shelby credentials or wildcard gateway.
+The dashboard and control-plane API run on Netlify. The isolated worker and Shelby
+artifact gateway run on dedicated hosts; user builds never run in a Netlify Function
+or in the control-plane process.
 
 ## Infrastructure setup
 
@@ -47,9 +47,8 @@ the DevStation architecture comparison, provisioning steps, security boundaries,
 environment files, DNS/TLS, migration instructions and verification requirements.
 
 Operator files are in [infra](infra). Keep secrets outside the repository. The
-worker must have a funded Shelby signer, Supabase service credentials, the same
-wallet/GitHub encryption keys as the control plane, and configured Aptos registry,
-fee token and treasury. The managed project wallet needs gas and fee tokens.
+worker needs a funded Shelby signer, Supabase service credentials and GitHub
+encryption keys. The connected Aptos wallet needs gas and fee tokens.
 
 ```sh
 docker build -t shelby-build:1 services/build-worker/image
